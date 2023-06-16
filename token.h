@@ -4,21 +4,23 @@
 #include "slice.h"
 
 typedef enum {
-  END_TOK,
-  LCURLY_TOK,
-  RCURLY_TOK,
-  LBRACK_TOK,
-  RBRACK_TOK,
-  STRING_TOK,
-  NUMBER_TOK,
-  TRUE_TOK,
-  FALSE_TOK,
-  NULL_TOK,
-} TokenType;
+  SK_END_TOK,
+  SK_LCURLY_TOK,
+  SK_RCURLY_TOK,
+  SK_LBRACK_TOK,
+  SK_RBRACK_TOK,
+  SK_STRING_TOK,
+  SK_NUMBER_TOK,
+  SK_TRUE_TOK,
+  SK_FALSE_TOK,
+  SK_NULL_TOK,
+  SK_COMMA_TOK,
+  SK_SEMICOLON_TOK,
+} Sk_TokenType;
 
 typedef struct {
-  TokenType type;
-  StrSlice lexeme;
-} Token;
+  Sk_TokenType type;
+  Sk_StrSlice lexeme;
+} Sk_Token;
 
 #endif

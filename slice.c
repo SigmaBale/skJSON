@@ -1,29 +1,29 @@
 #include "slice.h"
 #include <stdio.h>
 
-StrSlice
+Sk_StrSlice
 slice_new(char* ptr, size_t len)
 {
-    return (StrSlice) {
+    return (Sk_StrSlice) {
         .ptr = ptr,
         .len = len,
     };
 }
 
 char*
-slice_start(const StrSlice* slice)
+slice_start(const Sk_StrSlice* slice)
 {
     return (slice == NULL) ? NULL : slice->ptr;
 }
 
 char*
-slice_end(const StrSlice* slice)
+slice_end(const Sk_StrSlice* slice)
 {
     return (slice == NULL) ? NULL : slice->ptr + slice->len;
 }
 
 char*
-slice_index(const StrSlice* slice, size_t index)
+slice_index(const Sk_StrSlice* slice, size_t index)
 {
     if(slice == NULL) {
         return NULL;
@@ -39,28 +39,28 @@ slice_index(const StrSlice* slice, size_t index)
 }
 
 long int
-slice_len(const StrSlice* slice)
+slice_len(const Sk_StrSlice* slice)
 {
     return (slice == NULL) ? -1 : slice->len;
 }
 
-CharIterator
+Sk_CharIter
 iterator_char_new(const char* ptr, size_t len)
 {
-    return (CharIterator) {
+    return (Sk_CharIter) {
         .next = (char*) ptr,
         .end  = (char*) ptr + len - 1,
     };
 }
 
-CharIterator
-iterator_char_from_slice(StrSlice* slice)
+Sk_CharIter
+iterator_char_from_slice(Sk_StrSlice* slice)
 {
-    return (CharIterator) { .next = slice_start(slice), .end = slice_end(slice) };
+    return (Sk_CharIter) { .next = slice_start(slice), .end = slice_end(slice) };
 }
 
 int
-iterator_char_next(CharIterator* iterator)
+iterator_char_next(Sk_CharIter* iterator)
 {
     if(iterator == NULL || iterator->next == NULL) {
         return EOF;
@@ -77,7 +77,7 @@ iterator_char_next(CharIterator* iterator)
 }
 
 int
-iterator_char_peek_next(const CharIterator* iterator)
+iterator_char_peek_next(const Sk_CharIter* iterator)
 {
     if(iterator == NULL || iterator->next == NULL) {
         return EOF;
@@ -87,7 +87,7 @@ iterator_char_peek_next(const CharIterator* iterator)
 }
 
 int
-iterator_char_peek(const CharIterator* iterator, size_t offset)
+iterator_char_peek(const Sk_CharIter* iterator, size_t offset)
 {
     if(iterator == NULL || iterator->next == NULL || iterator->next + offset > iterator->end) {
         return EOF;

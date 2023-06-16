@@ -1,20 +1,20 @@
-#ifndef __SCANNER_H__
-#define __SCANNER_H__
+#ifndef __SK_SCANNER_H__
+#define __SK_SCANNER_H__
 
 #include "token.h"
 #include <stdbool.h>
 
 typedef struct {
-  CharIterator iter;
-  Token next;
-} Scanner;
+  Sk_CharIter iter;
+  Sk_Token next;
+} Sk_Scanner;
 
-Scanner scanner_new(CharIterator iterator);
+Sk_Scanner Sk_Scanner_new(Sk_CharIter iterator);
 
-bool scanner_has_next(const Scanner *scanner);
+bool Sk_Scanner_has_next(const Sk_Scanner *scanner);
 
-Token scanner_next(Scanner *scanner);
+Sk_Token Sk_Scanner_next(Sk_Scanner *scanner);
 
-Token scanner_peek(const Scanner *scanner);
+Sk_Token Sk_Scanner_peek(const Sk_Scanner *scanner);
 
 #endif

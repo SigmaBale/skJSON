@@ -11,37 +11,37 @@
 typedef struct {
   char *ptr;
   size_t len;
-} StrSlice;
+} Sk_StrSlice;
 
 /**
  * 'StrSlice' constructor, PTR denotes the start of sequence,
  * LEN is the length of the sequence.
  */
-StrSlice slice_new(char *ptr, size_t len);
+Sk_StrSlice slice_new(char *ptr, size_t len);
 
 /**
  * Returns the pointer to the current/starting byte of SLICE.
  * Returns NULL if SLICE is NULL or if starting byte is NULL.
  */
-char *slice_start(const StrSlice *slice);
+char *slice_start(const Sk_StrSlice *slice);
 
 /**
  * Returns the pointer to the last byte of SLICE.
  * Returns NULL if SLICE is NULL or if last byte is NULL.
  */
-char *slice_end(const StrSlice *slice);
+char *slice_end(const Sk_StrSlice *slice);
 
 /**
  * Returns a pointer to the element at the INDEX or
  * NULL if INDEX is out of bounds and/or SLICE is NULL.
  */
-char *slice_index(const StrSlice *slice, size_t index);
+char *slice_index(const Sk_StrSlice *slice, size_t index);
 
 /**
  * Returns the SLICE length.
  * Returns -1 if SLICE is NULL.
  */
-long int slice_len(const StrSlice *slice);
+long int slice_len(const Sk_StrSlice *slice);
 
 /**
  * Iterator over char's (bytes).
@@ -49,25 +49,25 @@ long int slice_len(const StrSlice *slice);
 typedef struct {
   char *next;
   char *end;
-} CharIterator;
+} Sk_CharIter;
 
 /**
  * 'CharIterator' constructor.
  * PTR is starting byte of iterator and LEN the len of iterator.
  */
-CharIterator iterator_char_new(const char *ptr, size_t len);
+Sk_CharIter iterator_char_new(const char *ptr, size_t len);
 
 /**
  * Constructs the 'CharIterator' from the 'StrSlice'.
  * Returns NULL if SLICE is NULL.
  */
-CharIterator iterator_char_from_slice(StrSlice* slice);
+Sk_CharIter iterator_char_from_slice(Sk_StrSlice* slice);
 
 /**
  * Returns the next char from ITERATOR, if ITERATOR is exhausted
  * (was already at the end) or ITERATOR is NULL then it returns EOF.
  */
-int iterator_char_next(CharIterator *iterator);
+int iterator_char_next(Sk_CharIter *iterator);
 
 /**
  * Peeks at the next char without advancing the iterator (consuming
@@ -75,7 +75,7 @@ int iterator_char_next(CharIterator *iterator);
  * Returns either a char that we peeked at or EOF is ITERATOR is NULL
  * or ITERATOR is exhausted.
  */
-int iterator_char_peek_next(const CharIterator *iterator);
+int iterator_char_peek_next(const Sk_CharIter *iterator);
 
 /**
  * Peeks at the next ITERATOR value with OFFSET without advancing the
@@ -83,6 +83,6 @@ int iterator_char_peek_next(const CharIterator *iterator);
  * If OFFSET and current ITERATOR position are bigger than the ITERATOR'S
  * length or ITERATOR is NULL or ITERATOR is exhausted, then it returns EOF.
  */
-int iterator_char_peek(const CharIterator *iterator, size_t offset);
+int iterator_char_peek(const Sk_CharIter *iterator, size_t offset);
 
 #endif
