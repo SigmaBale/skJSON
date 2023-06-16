@@ -1,14 +1,30 @@
 #include "scanner.h"
 #include <stdio.h>
 
-static Token NullToken = { .type = NONE, .lexeme = NULL };
+static const Token EmptyToken = { 0 };
 
+/*
+  JSON_OBJECT,
+  JSON_ARRAY,
+  JSON_STRING,
+  JSON_INT_VAL,
+  JSON_DOUBLE_VAL,
+  JSON_BOOL,
+  JSON_NULL,
+ */
+
+/*
+    typedef struct {
+      CharIterator iter;
+      Token next;
+    } Scanner;
+ */
 Scanner
 scanner_new(CharIterator iterator)
 {
     return (Scanner) {
-        .iter  = iterator,
-        .token = NONE,
+        .iter = iterator,
+        .next = EmptyToken,
     };
 }
 
@@ -26,5 +42,5 @@ Token
 scanner_next(Scanner* scanner)
 {
     // TODO
-    return NullToken;
+    return EmptyToken;
 }

@@ -6,7 +6,7 @@
 
 typedef struct {
   CharIterator iter;
-  Token token;
+  Token next;
 } Scanner;
 
 Scanner scanner_new(CharIterator iterator);

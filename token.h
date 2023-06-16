@@ -4,39 +4,16 @@
 #include "slice.h"
 
 typedef enum {
-  L_PARAN,   /* '    (      ' */
-  R_PARAN,   /* '    )      ' */
-  L_CURLY,   /* '    {      ' */
-  R_CURLY,   /* '    }      ' */
-  L_BRACK,   /* '    [      ' */
-  R_BRACK,   /* '    ]      ' */
-  DOT,       /* '    .      ' */
-  COMMA,     /* '    ,      ' */
-  SEMICOLON, /* '    ;      ' */
-  COLON,     /* '    :      ' */
-  ASSIGN,    /* '    =      ' */
-  EQ,        /* '    ==     ' */
-  GT,        /* '    >      ' */
-  LT,        /* '    <      ' */
-  GTE,       /* '    >=     ' */
-  LTE,       /* '    <=     ' */
-  OR,        /* '    ||     ' */
-  AND,       /* '    &&     ' */
-  BOR,       /* '    |      ' */
-  BAND,      /* '    &      ' */
-  STAR,      /* '    *      ' */
-  FSLASH,    /* '    /      ' */
-  BSLASH,    /* '    \      ' */
-  DQUOTE,    /* '    "      ' */
-  SQUOTE,    /* '    '      ' */
-  CHAR,      /* 'a-z or A-Z ' */
-  DIGIT,     /* '   0-9     ' */
-  INTEGER,   /* ' 1234...   ' */
-  IDENT,     /* '_?SomeName ' */
-  QMARK,     /* '    ?      ' */
-  MINUS,     /* '    -      ' */
-  PLUS,      /* '    +      ' */
-  NONE,      /*     ???       */
+  END_TOK,
+  LCURLY_TOK,
+  RCURLY_TOK,
+  LBRACK_TOK,
+  RBRACK_TOK,
+  STRING_TOK,
+  NUMBER_TOK,
+  TRUE_TOK,
+  FALSE_TOK,
+  NULL_TOK,
 } TokenType;
 
 typedef struct {
