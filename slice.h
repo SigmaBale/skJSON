@@ -1,5 +1,5 @@
-#ifndef __SLICE_H__
-#define __SLICE_H__
+#ifndef __SK_SLICE_H__
+#define __SK_SLICE_H__
 
 #include <stddef.h>
 
@@ -17,31 +17,31 @@ typedef struct {
  * 'StrSlice' constructor, PTR denotes the start of sequence,
  * LEN is the length of the sequence.
  */
-Sk_StrSlice slice_new(char *ptr, size_t len);
+Sk_StrSlice Sk_Slice_new(char *ptr, size_t len);
 
 /**
  * Returns the pointer to the current/starting byte of SLICE.
  * Returns NULL if SLICE is NULL or if starting byte is NULL.
  */
-char *slice_start(const Sk_StrSlice *slice);
+char *Sk_Slice_start(const Sk_StrSlice *slice);
 
 /**
  * Returns the pointer to the last byte of SLICE.
  * Returns NULL if SLICE is NULL or if last byte is NULL.
  */
-char *slice_end(const Sk_StrSlice *slice);
+char *Sk_Slice_end(const Sk_StrSlice *slice);
 
 /**
  * Returns a pointer to the element at the INDEX or
  * NULL if INDEX is out of bounds and/or SLICE is NULL.
  */
-char *slice_index(const Sk_StrSlice *slice, size_t index);
+char *Sk_Slice_index(const Sk_StrSlice *slice, size_t index);
 
 /**
  * Returns the SLICE length.
  * Returns -1 if SLICE is NULL.
  */
-long int slice_len(const Sk_StrSlice *slice);
+long int Sk_Slice_len(const Sk_StrSlice *slice);
 
 /**
  * Iterator over char's (bytes).
@@ -55,19 +55,19 @@ typedef struct {
  * 'CharIterator' constructor.
  * PTR is starting byte of iterator and LEN the len of iterator.
  */
-Sk_CharIter iterator_char_new(const char *ptr, size_t len);
+Sk_CharIter Sk_CharIter_new(const char *ptr, size_t len);
 
 /**
  * Constructs the 'CharIterator' from the 'StrSlice'.
  * Returns NULL if SLICE is NULL.
  */
-Sk_CharIter iterator_char_from_slice(Sk_StrSlice* slice);
+Sk_CharIter Sk_CharIter_from_slice(Sk_StrSlice *slice);
 
 /**
  * Returns the next char from ITERATOR, if ITERATOR is exhausted
  * (was already at the end) or ITERATOR is NULL then it returns EOF.
  */
-int iterator_char_next(Sk_CharIter *iterator);
+int Sk_Iterator_char_next(Sk_CharIter *iterator);
 
 /**
  * Peeks at the next char without advancing the iterator (consuming

@@ -2,6 +2,7 @@
 #define __SK_NODE_H__
 
 #include "scanner.h"
+#include "sk_vec.h"
 #include <stdint.h>
 
 #define PRINT_OOM_ERR                                                          \
@@ -50,7 +51,7 @@ struct Sk_JsonArray {
 
 typedef struct {
   Sk_JsonString string;
-  Sk_JsonNode value;
+  Sk_JsonNode *value;
 } Sk_JsonMember;
 
 struct Sk_JsonObject {
@@ -58,9 +59,10 @@ struct Sk_JsonObject {
   size_t len;
 };
 
+Sk_JsonNode *Sk_JsonNode_new(Sk_Scanner *scanner);
 Sk_JsonNode *Sk_JsonErrorNode_new(Sk_JsonError msg);
-Sk_JsonNode *Sk_JsonObjectNode_new(Sk_JsonMember **members, size_t len);
-Sk_JsonNode *Sk_JsonArrayNode_new(Sk_JsonNode **nodes, size_t len);
+Sk_JsonNode *Sk_JsonObjectNode_new(Sk_Vec members);
+Sk_JsonNode *Sk_JsonArrayNode_new(Sk_Vec nodes);
 Sk_JsonNode *Sk_JsonStringNode_new(Sk_JsonString str);
 Sk_JsonNode *Sk_JsonIntegerNode_new(Sk_JsonInteger number);
 Sk_JsonNode *Sk_JsonDoubleNode_new(Sk_JsonDouble number);

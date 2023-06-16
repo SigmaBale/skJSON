@@ -165,7 +165,7 @@ Sk_JsonMember_drop(Sk_JsonMember* member)
 {
     if(member != NULL) {
         free(member->string);
-        Sk_JsonNode_drop(&member->value);
+        Sk_JsonNode_drop(member->value);
         member->string = NULL;
     }
 }

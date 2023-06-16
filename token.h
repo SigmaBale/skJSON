@@ -1,5 +1,5 @@
-#ifndef __TOKEN_H__
-#define __TOKEN_H__
+#ifndef __SK_TOKEN_H__
+#define __SK_TOKEN_H__
 
 #include "slice.h"
 
@@ -9,8 +9,9 @@ typedef enum {
   SK_RCURLY_TOK,
   SK_LBRACK_TOK,
   SK_RBRACK_TOK,
-  SK_STRING_TOK,
-  SK_NUMBER_TOK,
+  SK_QUOTES_TOK,
+  SK_HYPHEN_TOK,
+  SK_DIGIT_TOK,
   SK_TRUE_TOK,
   SK_FALSE_TOK,
   SK_NULL_TOK,
