@@ -11,8 +11,6 @@ typedef struct {
 
 Sk_Scanner Sk_Scanner_new(Sk_CharIter iterator);
 
-bool Sk_Scanner_has_next(const Sk_Scanner *scanner);
-
 Sk_Token Sk_Scanner_next(Sk_Scanner *scanner);
 
 Sk_Token Sk_Scanner_peek(const Sk_Scanner *scanner);

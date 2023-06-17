@@ -2,7 +2,7 @@
 #include <stdio.h>
 
 Sk_StrSlice
-slice_new(char* ptr, size_t len)
+Sk_Slice_new(char* ptr, size_t len)
 {
     return (Sk_StrSlice) {
         .ptr = ptr,
@@ -11,19 +11,19 @@ slice_new(char* ptr, size_t len)
 }
 
 char*
-slice_start(const Sk_StrSlice* slice)
+Sk_slice_start(const Sk_StrSlice* slice)
 {
     return (slice == NULL) ? NULL : slice->ptr;
 }
 
 char*
-slice_end(const Sk_StrSlice* slice)
+Sk_slice_end(const Sk_StrSlice* slice)
 {
     return (slice == NULL) ? NULL : slice->ptr + slice->len;
 }
 
 char*
-slice_index(const Sk_StrSlice* slice, size_t index)
+Sk_slice_index(const Sk_StrSlice* slice, size_t index)
 {
     if(slice == NULL) {
         return NULL;
@@ -39,13 +39,13 @@ slice_index(const Sk_StrSlice* slice, size_t index)
 }
 
 long int
-slice_len(const Sk_StrSlice* slice)
+Sk_slice_len(const Sk_StrSlice* slice)
 {
     return (slice == NULL) ? -1 : slice->len;
 }
 
 Sk_CharIter
-iterator_char_new(const char* ptr, size_t len)
+Sk_CharIter_new(const char* ptr, size_t len)
 {
     return (Sk_CharIter) {
         .next = (char*) ptr,
@@ -54,13 +54,13 @@ iterator_char_new(const char* ptr, size_t len)
 }
 
 Sk_CharIter
-iterator_char_from_slice(Sk_StrSlice* slice)
+Sk_CharIter_from_slice(Sk_StrSlice* slice)
 {
-    return (Sk_CharIter) { .next = slice_start(slice), .end = slice_end(slice) };
+    return (Sk_CharIter) { .next = Sk_Slice_start(slice), .end = Sk_Slice_end(slice) };
 }
 
 int
-iterator_char_next(Sk_CharIter* iterator)
+Sk_CharIter_next(Sk_CharIter* iterator)
 {
     if(iterator == NULL || iterator->next == NULL) {
         return EOF;
@@ -77,7 +77,7 @@ iterator_char_next(Sk_CharIter* iterator)
 }
 
 int
-iterator_char_peek_next(const Sk_CharIter* iterator)
+Sk_CharIter_peek_next(const Sk_CharIter* iterator)
 {
     if(iterator == NULL || iterator->next == NULL) {
         return EOF;
@@ -87,7 +87,7 @@ iterator_char_peek_next(const Sk_CharIter* iterator)
 }
 
 int
-iterator_char_peek(const Sk_CharIter* iterator, size_t offset)
+Sk_CharIter_peek(const Sk_CharIter* iterator, size_t offset)
 {
     if(iterator == NULL || iterator->next == NULL || iterator->next + offset > iterator->end) {
         return EOF;

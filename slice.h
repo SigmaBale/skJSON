@@ -67,7 +67,7 @@ Sk_CharIter Sk_CharIter_from_slice(Sk_StrSlice *slice);
  * Returns the next char from ITERATOR, if ITERATOR is exhausted
  * (was already at the end) or ITERATOR is NULL then it returns EOF.
  */
-int Sk_Iterator_char_next(Sk_CharIter *iterator);
+int Sk_CharIter_next(Sk_CharIter *iterator);
 
 /**
  * Peeks at the next char without advancing the iterator (consuming
@@ -75,7 +75,7 @@ int Sk_Iterator_char_next(Sk_CharIter *iterator);
  * Returns either a char that we peeked at or EOF is ITERATOR is NULL
  * or ITERATOR is exhausted.
  */
-int iterator_char_peek_next(const Sk_CharIter *iterator);
+int Sk_CharIter_peek_next(const Sk_CharIter *iterator);
 
 /**
  * Peeks at the next ITERATOR value with OFFSET without advancing the
@@ -83,6 +83,6 @@ int iterator_char_peek_next(const Sk_CharIter *iterator);
  * If OFFSET and current ITERATOR position are bigger than the ITERATOR'S
  * length or ITERATOR is NULL or ITERATOR is exhausted, then it returns EOF.
  */
-int iterator_char_peek(const Sk_CharIter *iterator, size_t offset);
+int Sk_CharIter_peek(const Sk_CharIter *iterator, size_t offset);
 
 #endif
