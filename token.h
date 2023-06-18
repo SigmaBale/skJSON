@@ -4,13 +4,18 @@
 #include "slice.h"
 
 typedef enum {
-  SK_END,
+  SK_INVALID,
   SK_LCURLY,
   SK_RCURLY,
   SK_LBRACK,
   SK_RBRACK,
-  SK_STRING,
-  SK_NUMBER,
+  SK_QUOTES,
+  SK_DIGIT,
+  SK_ZERO,
+  SK_WS,
+  SK_DOT,
+  SK_HYPHEN,
+  SK_PLUS,
   SK_BOOL,
   SK_NULL,
   SK_COMMA,

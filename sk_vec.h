@@ -31,4 +31,6 @@ void Sk_Vec_drop(Sk_Vec *vec, FreeFn free_fn);
 
 void *Sk_Vec_index(Sk_Vec *vec, size_t index);
 
+void *Sk_Vec_front(Sk_Vec *vec);
+
 #endif

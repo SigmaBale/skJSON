@@ -62,6 +62,16 @@ _Sk_Vec_get(Sk_Vec* vec, size_t index)
     return &vec->allocation[index * vec->ele_size];
 }
 
+void*
+Sk_Vec_front(Sk_Vec* vec)
+{
+    if(vec == NULL || vec->len == 0) {
+        return NULL;
+    }
+
+    return _Sk_Vec_get(vec, 0);
+}
+
 bool
 Sk_Vec_push(Sk_Vec* vec, void* element)
 {
