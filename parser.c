@@ -1,44 +1,55 @@
-#include "node.h"
+// clang-format off
 #include "parser.h"
-#include "scanner.h"
 #include "token.h"
+#include "node.h"
+#include "scanner.h"
 #include <assert.h>
 #include <ctype.h>
 #include <errno.h>
-#include <fcntl.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
+// clang-format on
 
 #define SK_EMPTY_STRING ""
 
-struct Sk_Json {
+static Sk_JsonString Sk_JsonString_new(Sk_Token token);
+static Sk_JsonNode*  Sk_parse_json_object(Sk_Scanner* scanner);
+static Sk_JsonNode*  Sk_parse_json_array(Sk_Scanner* scanner);
+static Sk_JsonNode*  Sk_parse_json_string(Sk_Scanner* scanner);
+static Sk_JsonNode*  Sk_parse_json_number(Sk_Scanner* scanner);
+static Sk_JsonNode*  Sk_parse_json_bool(Sk_Scanner* scanner);
+static Sk_JsonNode*  Sk_parse_json_null(Sk_Scanner* scanner);
+
+struct skJson {
     Sk_JsonNode* root;
-    Sk_JsonNode* tail;
 };
 
-Sk_Json*
-sk_parse_json(char* json_file)
+skJson*
+sk_json_new(void* buff, size_t bufsize)
 {
-    if(json_file == NULL) {
-        return NULL;
-    }
-
-    int n;
-    int fd;
-
-    if((fd = open(json_file, 'r')) == -1) {
+    if(buff == NULL) {
         return NULL;
     }
 
     Sk_JsonNode* root;
+    Sk_Scanner*  scanner = Sk_Scanner_new(buff, bufsize);
 
-    /// TODO: allow user to input buffersize ?
-    Sk_Scanner scanner = Sk_Scanner_new(Sk_CharIter_new(NULL, 0), fd);
+    root = Sk_JsonNode_new(scanner);
 
-    root = Sk_JsonNode_new(&scanner);
+    if(root == NULL) {
+        return NULL;
+    }
 
-    return NULL;
+    skJson* json = malloc(sizeof(skJson));
+
+    if(json == NULL) {
+        PRINT_OOM_ERR;
+        return NULL;
+    }
+
+    json->root = root;
+
+    return json;
 }
 
 Sk_JsonNode*
@@ -107,7 +118,7 @@ Sk_parse_json_object(Sk_Scanner* scanner)
             /// Fetch next token
             token = Sk_Scanner_next(scanner);
 
-            if(token.type != SK_SEMICOLON) {
+            if(token.type != SK_COLON) {
                 err = true;
                 break;
             }

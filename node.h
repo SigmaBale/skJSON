@@ -1,9 +1,11 @@
 #ifndef __SK_NODE_H__
 #define __SK_NODE_H__
 
+// clang-format off
 #include "scanner.h"
 #include "sk_vec.h"
 #include <stdint.h>
+// clang-format on
 
 #define PRINT_OOM_ERR                                                          \
   fprintf(stderr, "error %s:%d: out of memory\n", __FILE__, __LINE__)

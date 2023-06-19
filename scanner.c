@@ -1,6 +1,5 @@
-// Clang-off
+// clang-format off
 #include <stdbool.h>
-// Clang-on
 #include "node.h"
 #include "scanner.h"
 #include "sk_vec.h"
@@ -8,12 +7,10 @@
 #include <ctype.h>
 #include <stdlib.h>
 #include <string.h>
-
-#define BUFF_READ_ERR fprintf(stderr, "errored trying to read into buffer\n")
-#define OFFSET_OOB    fprintf(stderr, "offset is out of bounds\n")
+// clang-format on
 
 Sk_Scanner*
-Sk_Scanner_new(int fd, void* buffer, size_t bufsize)
+Sk_Scanner_new(void* buffer, size_t bufsize)
 {
     if(buffer == NULL || bufsize == 0) {
         return NULL;
@@ -108,7 +105,8 @@ void static _Sk_Scanner_set_bool_or_null_token(Sk_Scanner* scanner, char ch)
     }
 
     char* current;
-    if((current = Sk_CharIter_current(iter)) != iter->end && !isspace(*current)) {
+    /// If next character is not EOF or space, then this is invalid token
+    if((current = Sk_CharIter_current(iter) + 1) < iter->end && !isspace(*current)) {
         scanner->token.type = SK_INVALID;
     }
 }
