@@ -1,5 +1,6 @@
 #include "slice.h"
-#include <stdio.h>
+#include <fcntl.h>
+#include <unistd.h>
 
 Sk_StrSlice
 Sk_Slice_new(char* ptr, size_t len)
@@ -59,6 +60,16 @@ Sk_CharIter_from_slice(Sk_StrSlice* slice)
     return (Sk_CharIter) { .next = Sk_Slice_start(slice), .end = Sk_Slice_end(slice) };
 }
 
+char*
+Sk_CharIter_current(const Sk_CharIter* iterator)
+{
+    if(iterator == NULL || iterator->next == NULL) {
+        return EOF;
+    }
+
+    return iterator->next;
+}
+
 int
 Sk_CharIter_next(Sk_CharIter* iterator)
 {
@@ -78,21 +89,11 @@ Sk_CharIter_next(Sk_CharIter* iterator)
 }
 
 int
-Sk_CharIter_peek_next(const Sk_CharIter* iterator)
+Sk_CharIter_peek(const Sk_CharIter* iterator)
 {
     if(iterator == NULL || iterator->next == NULL) {
         return EOF;
     }
 
     return *iterator->next;
-}
-
-int
-Sk_CharIter_peek(const Sk_CharIter* iterator, size_t offset)
-{
-    if(iterator == NULL || iterator->next == NULL || iterator->next + offset > iterator->end) {
-        return EOF;
-    }
-
-    return *(iterator->next + offset);
 }

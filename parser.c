@@ -10,8 +10,9 @@
 #include <string.h>
 #include <unistd.h>
 
+#define SK_EMPTY_STRING ""
+
 struct Sk_Json {
-    int          fd;
     Sk_JsonNode* root;
     Sk_JsonNode* tail;
 };
@@ -23,8 +24,8 @@ sk_parse_json(char* json_file)
         return NULL;
     }
 
-    int fd;
     int n;
+    int fd;
 
     if((fd = open(json_file, 'r')) == -1) {
         return NULL;
@@ -32,9 +33,9 @@ sk_parse_json(char* json_file)
 
     Sk_JsonNode* root;
 
-    Sk_Scanner scanner = Sk_Scanner_new(Sk_CharIter_new(NULL, 0));
+    /// TODO: allow user to input buffersize ?
+    Sk_Scanner scanner = Sk_Scanner_new(Sk_CharIter_new(NULL, 0), fd);
 
-    _sk_refill_buf();
     root = Sk_JsonNode_new(&scanner);
 
     return NULL;
@@ -49,12 +50,13 @@ Sk_JsonNode_new(Sk_Scanner* scanner)
             return Sk_parse_json_object(scanner);
         case SK_LBRACK:
             return Sk_parse_json_array(scanner);
-        case SK_QUOTES:
+        case SK_STRING:
             return Sk_parse_json_string(scanner);
         case SK_HYPHEN:
         case SK_DIGIT:
             return Sk_parse_json_number(scanner);
-        case SK_BOOL:
+        case SK_FALSE:
+        case SK_TRUE:
             return Sk_parse_json_bool(scanner);
         case SK_NULL:
             return Sk_parse_json_null(scanner);
@@ -94,7 +96,7 @@ Sk_parse_json_object(Sk_Scanner* scanner)
             start = false;
         }
 
-        if(token.type == SK_QUOTES || token.type == SK_HYPHEN) {
+        if(token.type == SK_STRING) {
             temp.string = Sk_JsonString_new(token);
 
             if(temp.string == NULL) {
@@ -211,7 +213,7 @@ static Sk_JsonString
 Sk_JsonString_new(Sk_Token token)
 {
     if(token.lexeme.len == 0) {
-        return ""; /// static memory
+        return SK_EMPTY_STRING;
     }
 
     /// Number of hexadecimal code points for UTF-16 encoding
@@ -286,11 +288,7 @@ Sk_parse_json_string(Sk_Scanner* scanner)
         return Sk_JsonErrorNode_new("failed to parse Json String");
     }
 
-    /// This is to ensure that drop function for Json String doesn't try and
-    /// free the '""' (empty string) string literal (stored in .rodata section)
-    Sk_NodeType ntype = (token.lexeme.len == 0) ? SK_EMPTYSTRING_NODE : SK_STRING_NODE;
-
-    return Sk_JsonStringNode_new(jstring, ntype);
+    return Sk_JsonStringNode_new(jstring);
 }
 
 /// A bit wierd control flow in order to avoid nesting too much, this could
@@ -300,11 +298,10 @@ Sk_parse_json_string(Sk_Scanner* scanner)
 static Sk_JsonNode*
 Sk_parse_json_number(Sk_Scanner* scanner)
 {
-    /// Fetch already known token 'SK_NUMBER'
+    /// Fetch the first token
     Sk_Token token = Sk_Scanner_next(scanner);
 
     int  c;
-    bool negative      = false;
     bool zero          = false;
     bool digit         = false;
     bool decimal_point = false;
@@ -313,98 +310,38 @@ Sk_parse_json_number(Sk_Scanner* scanner)
     bool sign          = false;
     bool err           = false;
 
-    while(!err && (token = Sk_Scanner_next(scanner)).type != SK_WS) {
-        switch(token.type) {
-            case SK_ZERO:
-                if(zero) {
-                    err = true;
-                } else {
-                    digit = (!digit) ? true : false;
-                    zero  = true;
-                }
-                break;
-            case SK_DIGIT:
-                if(zero) {
-                    err = true;
-                } else if(decimal_point) {
-                    fraction = true;
-                    token    = Sk_Scanner_skip(scanner, SK_DIGIT);
-                } else {
-                    digit = true;
-                }
-                break;
-            case SK_HYPHEN:
-                if(!digit) {
-                    negative = true;
-                } else if(fraction && !sign) {
-                }
-                break;
-            case SK_PLUS:
-                break;
-            case SK_DOT:
-                break;
-            default:
-                err = true;
-                break;
-        }
-        switch(*token.lexeme.ptr) {
-            case '0':
-            case '1':
-            case '2':
-            case '3':
-            case '4':
-            case '5':
-            case '6':
-            case '7':
-            case '8':
-            case '9':
-                break;
-            case '.':
-                break;
-            case 'e':
-            case 'E':
-                break;
-            case '-':
-            case '+':
-                break;
-            default:
-                err = true;
-                break;
-        }
+    char* start = token.lexeme.ptr;
+
+    if(token.type == SK_HYPHEN) {
+        token = Sk_Scanner_next(scanner);
     }
 
-    Sk_CharIter iterator = Sk_CharIter_from_slice(&token.lexeme);
-
-    c = Sk_CharIter_next(&iterator);
-
-    if(c == '-') {
-        c = Sk_CharIter_next(&iterator);
-    }
-
-    if(isdigit(c)) {
+    if(token.type == SK_DIGIT || token.type == SK_ZERO) {
         digit = true;
 
-        if(c == '0') {
+        if(token.type == SK_ZERO) {
             zero = true;
-            if(isdigit(Sk_CharIter_peek_next(&iterator))) {
+            if(Sk_Scanner_peek(scanner).type == SK_DIGIT) {
                 err = true;
                 goto jmp_err;
             }
-        }
-
-        while(isdigit(c = Sk_CharIter_next(&iterator))) {
-            ;
+        } else {
+            Sk_Scanner_skip(scanner, SK_DIGIT);
         }
     }
 
-    if(c == '.') {
+    /// Let's check if there is fraction
+    token = Sk_Scanner_next(scanner);
+
+    if(token.type == SK_DOT) {
         if(!digit) {
             err = true;
             goto jmp_err;
         }
 
-        while(isdigit(c = Sk_CharIter_next(&iterator))) {
+        if(Sk_Scanner_peek(scanner).type == SK_DIGIT) {
             fraction = true;
+            Sk_Scanner_skip(scanner, SK_DIGIT);
         }
 
         if(!fraction) {
@@ -413,14 +350,20 @@ Sk_parse_json_number(Sk_Scanner* scanner)
         }
     }
 
-    if(c == 'e' || c == 'E') {
+    /// Let's check if there is exponent
+    token = Sk_Scanner_next(scanner);
+
+    if(token.type == SK_EXP) {
         if(!fraction) {
             err = true;
             goto jmp_err;
         }
 
-        if((c = Sk_CharIter_next(&iterator)) == '-' || c == '+') {
-            sign = true;
+        Sk_Token peeked;
+
+        if((peeked = Sk_Scanner_peek(scanner)).type == SK_HYPHEN || peeked.type == SK_PLUS) {
+            sign  = true;
+            token = Sk_Scanner_next(scanner);
         }
 
         if(!sign) {
@@ -428,16 +371,23 @@ Sk_parse_json_number(Sk_Scanner* scanner)
             goto jmp_err;
         }
 
-        while(isdigit(c = Sk_CharIter_next(&iterator))) {
-            ;
+        if(Sk_Scanner_peek(scanner).type == SK_DIGIT) {
+            token = Sk_Scanner_next(scanner);
+            Sk_Scanner_skip(scanner, SK_DIGIT);
+        } else {
+            err = true;
+            goto jmp_err;
         }
     }
 
-    Sk_StrSlice   slice  = token.lexeme;
-    char*         endptr = slice.ptr + slice.len;
-    Sk_JsonDouble number = strtod(slice.ptr, &endptr);
+    char*         end    = token.lexeme.ptr;
+    Sk_JsonDouble number = strtod(start, &end);
 
-    if(c != EOF || errno == ERANGE) {
+    if(errno == ERANGE) {
+        fprintf(stderr, "warning: Json Number overflow detected\n");
+    }
+
+    if(c != EOF) {
 jmp_err:
         return Sk_JsonErrorNode_new("failed to parse Json Number");
     }
@@ -452,23 +402,20 @@ jmp_err:
 Sk_JsonNode*
 Sk_parse_json_bool(Sk_Scanner* scanner)
 {
-    char* ptr = scanner->next.lexeme.ptr;
+    /// Fetch the bool token
+    Sk_Token token = Sk_Scanner_next(scanner);
 
-    if(strcmp(ptr, "true") == 0) {
+    if(token.type == SK_TRUE) {
         return Sk_JsonBoolNode_new(true);
-    } else if(strcmp(ptr, "false") == 0) {
-        return Sk_JsonBoolNode_new(false);
     } else {
-        return Sk_JsonErrorNode_new("failed parsing Json Bool");
+        return Sk_JsonBoolNode_new(false);
     }
 }
 
-Sk_JsonNode*
+inline Sk_JsonNode*
 Sk_parse_json_null(Sk_Scanner* scanner)
 {
-    if(strcmp(scanner->next.lexeme.ptr, "null")) {
-        return Sk_JsonNullNode_new();
-    } else {
-        return Sk_JsonErrorNode_new("failed parsing Json Null");
-    }
+    /// Fetch the null token
+    Sk_Scanner_next(scanner);
+    return Sk_JsonNullNode_new();
 }

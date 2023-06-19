@@ -65,7 +65,7 @@ Sk_JsonNode *Sk_JsonNode_new(Sk_Scanner *scanner);
 Sk_JsonNode *Sk_JsonErrorNode_new(Sk_JsonError msg);
 Sk_JsonNode *Sk_JsonObjectNode_new(Sk_Vec members);
 Sk_JsonNode *Sk_JsonArrayNode_new(Sk_Vec nodes);
-Sk_JsonNode *Sk_JsonStringNode_new(Sk_JsonString str, Sk_NodeType type);
+Sk_JsonNode *Sk_JsonStringNode_new(Sk_JsonString str);
 Sk_JsonNode *Sk_JsonIntegerNode_new(Sk_JsonInteger number);
 Sk_JsonNode *Sk_JsonDoubleNode_new(Sk_JsonDouble number);
 Sk_JsonNode *Sk_JsonBoolNode_new(Sk_JsonBool boolean);

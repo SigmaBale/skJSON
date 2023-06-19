@@ -7,19 +7,19 @@
 
 typedef struct {
   Sk_CharIter iter;
-  Sk_Token next;
+  Sk_Token token;
+  char *buffer;
+  char *ptr;
+  size_t bufsize;
+  int fd;
 } Sk_Scanner;
 
-extern char SK_JSON_BUF[BUFSIZ];
-
-Sk_Scanner Sk_Scanner_new(Sk_CharIter iterator);
+Sk_Scanner* Sk_Scanner_new(int fd, size_t bufsize);
 
 Sk_Token Sk_Scanner_next(Sk_Scanner *scanner);
 
 Sk_Token Sk_Scanner_peek(const Sk_Scanner *scanner);
 
-Sk_Token Sk_Scanner_skip(Sk_Scanner* scanner, Sk_TokenType type);
-
-bool _sk_refill_buf(void);
+void Sk_Scanner_skip(Sk_Scanner *scanner, Sk_TokenType type);
 
 #endif

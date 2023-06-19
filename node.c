@@ -61,7 +61,7 @@ Sk_JsonArrayNode_new(Sk_Vec nodes)
 }
 
 Sk_JsonNode*
-Sk_JsonStringNode_new(Sk_JsonString str, Sk_NodeType type)
+Sk_JsonStringNode_new(Sk_JsonString str)
 {
     Sk_JsonNode* node = Sk_JsonNode_default();
 
@@ -69,7 +69,7 @@ Sk_JsonStringNode_new(Sk_JsonString str, Sk_NodeType type)
         return NULL;
     }
 
-    node->type           = type;
+    node->type           = (strlen(str) == 0) ? SK_EMPTYSTRING_NODE : SK_STRING_NODE;
     node->data->j_string = str;
 
     return node;
@@ -78,10 +78,9 @@ Sk_JsonStringNode_new(Sk_JsonString str, Sk_NodeType type)
 Sk_JsonNode*
 Sk_JsonIntegerNode_new(Sk_JsonInteger number)
 {
-    Sk_JsonNode* node = malloc(sizeof(Sk_JsonNode));
+    Sk_JsonNode* node = Sk_JsonNode_default();
 
     if(node == NULL) {
-        PRINT_OOM_ERR;
         return NULL;
     }
 

@@ -2,11 +2,10 @@
 #define __SK_SLICE_H__
 
 #include <stddef.h>
+#include <stdio.h>
 
 /**
  * 'StrSlice' is a contigious sequence of bytes.
- * Contigious means that every element is the
- * same distance from its neighbour/s.
  */
 typedef struct {
   char *ptr;
@@ -15,7 +14,7 @@ typedef struct {
 
 /**
  * 'StrSlice' constructor, PTR denotes the start of sequence,
- * LEN is the length of the sequence.
+ * LEN is the number of elements in the sequence.
  */
 Sk_StrSlice Sk_Slice_new(char *ptr, size_t len);
 
@@ -75,14 +74,11 @@ int Sk_CharIter_next(Sk_CharIter *iterator);
  * Returns either a char that we peeked at or EOF is ITERATOR is NULL
  * or ITERATOR is exhausted.
  */
-int Sk_CharIter_peek_next(const Sk_CharIter *iterator);
+int Sk_CharIter_peek(const Sk_CharIter *iterator);
 
 /**
- * Peeks at the next ITERATOR value with OFFSET without advancing the
- * iterator.
- * If OFFSET and current ITERATOR position are bigger than the ITERATOR'S
- * length or ITERATOR is NULL or ITERATOR is exhausted, then it returns EOF.
+ * Returns pointer to the current value the ITERATOR is pointing at.
  */
-int Sk_CharIter_peek(const Sk_CharIter *iterator, size_t offset);
+char *Sk_CharIter_current(const Sk_CharIter *iterator);
 
 #endif
