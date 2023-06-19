@@ -22,7 +22,7 @@ typedef enum {
   SK_FALSE,
   SK_NULL,
   SK_COMMA,
-  SK_SEMICOLON,
+  SK_COLON,
 } Sk_TokenType;
 
 typedef struct {

@@ -89,6 +89,32 @@ Sk_CharIter_next(Sk_CharIter* iterator)
 }
 
 int
+Sk_CharIter_advance(Sk_CharIter* iterator, size_t amount)
+{
+    if(iterator == NULL || iterator->next == NULL) {
+        return EOF;
+    }
+
+    int c = Sk_CharIter_peek(iterator);
+
+    while(amount--) {
+        if((c = Sk_CharIter_next(iterator)) == EOF) {
+            break;
+        }
+    }
+
+    return c;
+}
+
+inline void
+Sk_CharIter_drain(Sk_CharIter* iterator)
+{
+    if(iterator != NULL) {
+        iterator->next = NULL;
+    }
+}
+
+int
 Sk_CharIter_peek(const Sk_CharIter* iterator)
 {
     if(iterator == NULL || iterator->next == NULL) {

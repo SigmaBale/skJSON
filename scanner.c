@@ -1,24 +1,21 @@
+// Clang-off
+#include <stdbool.h>
+// Clang-on
 #include "node.h"
 #include "scanner.h"
 #include "sk_vec.h"
+#include <assert.h>
 #include <ctype.h>
 #include <stdlib.h>
-#include <unistd.h>
+#include <string.h>
 
 #define BUFF_READ_ERR fprintf(stderr, "errored trying to read into buffer\n")
 #define OFFSET_OOB    fprintf(stderr, "offset is out of bounds\n")
 
 Sk_Scanner*
-Sk_Scanner_new(int fd, size_t bufsize)
+Sk_Scanner_new(int fd, void* buffer, size_t bufsize)
 {
-    if(bufsize == 0) {
-        bufsize = BUFSIZ;
-    }
-
-    char* buffer = malloc(bufsize);
-
-    if(buffer == NULL) {
-        PRINT_OOM_ERR;
+    if(buffer == NULL || bufsize == 0) {
         return NULL;
     }
 
@@ -26,47 +23,13 @@ Sk_Scanner_new(int fd, size_t bufsize)
 
     if(scanner == NULL) {
         PRINT_OOM_ERR;
-        free(buffer);
         return NULL;
     }
 
-    scanner->iter   = Sk_CharIter_new(buffer, bufsize - 1);
-    scanner->token  = (Sk_Token) { 0 };
-    scanner->fd     = fd;
-    scanner->buffer = buffer;
-    scanner->ptr    = buffer;
+    scanner->iter  = Sk_CharIter_new(buffer, bufsize - 1);
+    scanner->token = (Sk_Token) { 0 };
 
     return scanner;
-}
-
-static int
-_Sk_Scanner_refill_buf(Sk_Scanner* scanner)
-{
-
-    int n;
-    /// Read more data into scanner buffer
-    n = read(scanner->fd, scanner->buffer, scanner->bufsize);
-
-    scanner->bufsize = (n == -1) ? 0 : n;
-
-    return n;
-}
-
-static inline void
-_Sk_Scanner_refill_and_handle(Sk_Scanner* scanner)
-{
-    int ret;
-    if((ret = _Sk_Scanner_refill_buf(scanner)) == 0) {
-        /// We reached end of the file, return EOF token
-        scanner->token.type = SK_EOF;
-    } else if(ret == -1) {
-        /// If error occured, exit with failure
-        BUFF_READ_ERR;
-        exit(EXIT_FAILURE);
-    } else {
-        /// If buffer is refilled get the next token
-        scanner->token = Sk_Scanner_next(scanner);
-    }
 }
 
 inline void
@@ -96,13 +59,8 @@ void static _Sk_Scanner_set_string_token(Sk_Scanner* scanner)
 
     /// Advance iterator until we hit closing quotes
     for(len = 0; (c = Sk_CharIter_next(&scanner->iter)) != '"'; len++) {
-        /// Check if we hit end of iterator and try to refill buffer
-        if(c == EOF && (c = _Sk_Scanner_refill_buf(scanner)) == -1) {
-            BUFF_READ_ERR;
-            /// Reading into buff failed, exit
-            exit(EXIT_FAILURE);
-        } else if(c == 0) {
-            /// We reached end of file, but string is invalid
+        if(c == EOF) {
+            /// We reached end of file and string is invalid
             scanner->token.type = SK_INVALID;
             break;
         }
@@ -112,10 +70,48 @@ void static _Sk_Scanner_set_string_token(Sk_Scanner* scanner)
     token->lexeme.len = len;
 }
 
-// TODO: Implement these
-void static _Sk_Scanner_set_true_token(Sk_Scanner* scanner);
-void static _Sk_Scanner_set_false_token(Sk_Scanner* scanner);
-void static _Sk_Scanner_set_null_token(Sk_Scanner* scanner);
+#define in_bounds(iter, bound) (iter)->end >= (bound)
+
+void static _Sk_Scanner_set_bool_or_null_token(Sk_Scanner* scanner, char ch)
+{
+    /// Start one spot before the starting letter
+    char*        start  = Sk_CharIter_current(&scanner->iter) - 1;
+    Sk_CharIter* iter   = &scanner->iter;
+    scanner->token.type = SK_INVALID;
+
+    switch(ch) {
+        case 't':
+            if(in_bounds(iter, start + 3) && strncmp(start, "true", 4) == 0) {
+                scanner->token.type = SK_TRUE;
+                Sk_CharIter_advance(iter, 4);
+                assert(*Sk_CharIter_current(iter) == 'e');
+            }
+            break;
+        case 'f':
+            if(in_bounds(iter, start + 4) && strncmp(start, "false", 5) == 0) {
+                scanner->token.type = SK_FALSE;
+                Sk_CharIter_advance(iter, 5);
+                assert(*Sk_CharIter_current(iter) == 'e');
+            }
+            break;
+        case 'n':
+            if(in_bounds(iter, start + 3) && strncmp(start, "null", 4) == 0) {
+                scanner->token.type = SK_NULL;
+                Sk_CharIter_advance(iter, 4);
+                assert(*Sk_CharIter_current(iter) == 'l');
+            }
+            break;
+        default:
+            /// Unreachable
+            assert(1 == 2);
+            break;
+    }
+
+    char* current;
+    if((current = Sk_CharIter_current(iter)) != iter->end && !isspace(*current)) {
+        scanner->token.type = SK_INVALID;
+    }
+}
 
 Sk_Token
 Sk_Scanner_next(Sk_Scanner* scanner)
@@ -154,23 +150,23 @@ Sk_Scanner_next(Sk_Scanner* scanner)
             scanner->token.type = SK_COMMA;
             break;
         case ':':
-            scanner->token.type = SK_SEMICOLON;
+            scanner->token.type = SK_COLON;
             break;
         case 't':
-            _Sk_Scanner_set_true_token(scanner);
+            _Sk_Scanner_set_bool_or_null_token(scanner, 't');
             break;
         case 'f':
-            _Sk_Scanner_set_false_token(scanner);
+            _Sk_Scanner_set_bool_or_null_token(scanner, 'f');
             break;
         case 'n':
-            _Sk_Scanner_set_null_token(scanner);
+            _Sk_Scanner_set_bool_or_null_token(scanner, 'n');
             break;
         case 'e':
         case 'E':
             scanner->token.type = SK_EXP;
             break;
         case EOF:
-            _Sk_Scanner_refill_and_handle(scanner);
+            scanner->token.type = SK_EOF;
             break;
         case '0':
             scanner->token.type = SK_ZERO;
@@ -191,6 +187,7 @@ Sk_Scanner_next(Sk_Scanner* scanner)
             break;
     }
 
+    /// Advance iterator
     Sk_CharIter_next(&scanner->iter);
     return scanner->token;
 }

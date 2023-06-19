@@ -72,6 +72,16 @@ Sk_Vec_front(Sk_Vec* vec)
     return _Sk_Vec_get(vec, 0);
 }
 
+void*
+Sk_Vec_back(Sk_Vec* vec)
+{
+    if(vec == NULL || vec->len == 0) {
+        return NULL;
+    }
+
+    return _Sk_Vec_get(vec, vec->len - 1);
+}
+
 bool
 Sk_Vec_push(Sk_Vec* vec, void* element)
 {

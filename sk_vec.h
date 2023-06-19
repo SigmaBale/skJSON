@@ -33,4 +33,6 @@ void *Sk_Vec_index(Sk_Vec *vec, size_t index);
 
 void *Sk_Vec_front(Sk_Vec *vec);
 
+void *Sk_Vec_back(Sk_Vec *vec);
+
 #endif

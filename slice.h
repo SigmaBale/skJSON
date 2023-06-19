@@ -81,4 +81,8 @@ int Sk_CharIter_peek(const Sk_CharIter *iterator);
  */
 char *Sk_CharIter_current(const Sk_CharIter *iterator);
 
+int Sk_CharIter_advance(Sk_CharIter *iterator, size_t amount);
+
+inline void Sk_CharIter_drain(Sk_CharIter *iterator);
+
 #endif
