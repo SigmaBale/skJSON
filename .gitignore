@@ -2,6 +2,7 @@
 .vim_undo
 build
 test.json
+tests
 
 # Object files
 *.o

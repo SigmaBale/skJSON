@@ -1,10 +1,7 @@
-#ifndef __SK_PARSER_H__
-#define __SK_PARSER_H__
+#ifndef __SK_JSON_H__
+#define __SK_JSON_H__
 
-// clang-format off
-#include "scanner.h"
-#include "node.h"
-// clang-format on
+#include <stddef.h>
 
 typedef struct skJson skJson;
 
