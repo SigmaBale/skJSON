@@ -129,7 +129,7 @@ Sk_Vec_pop(Sk_Vec* vec)
 int
 Sk_Vec_len(Sk_Vec* vec)
 {
-    return (vec == NULL) ? -1 : vec->len;
+    return (vec == NULL) ? -1 : (int_least64_t) vec->len;
 }
 
 static void

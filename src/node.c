@@ -136,7 +136,7 @@ Sk_JsonNullNode_new(void)
 }
 
 void
-Sk_JsonObjectNode_drop(Sk_JsonObject* object)
+Sk_JsonObject_drop(Sk_JsonObject* object)
 {
     if(object != NULL) {
         Sk_Vec_drop(&object->members, (FreeFn) Sk_JsonMember_drop);

@@ -9,7 +9,7 @@
 typedef struct Sk_Vec Sk_Vec;
 
 struct Sk_Vec {
-  void *allocation;
+  unsigned char *allocation;
   size_t ele_size;
   size_t capacity;
   size_t len;

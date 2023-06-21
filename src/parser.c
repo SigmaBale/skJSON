@@ -18,7 +18,7 @@ static Sk_JsonNode*  Sk_parse_json_array(Sk_Scanner* scanner);
 static Sk_JsonNode*  Sk_parse_json_string(Sk_Scanner* scanner);
 static Sk_JsonNode*  Sk_parse_json_number(Sk_Scanner* scanner);
 static Sk_JsonNode*  Sk_parse_json_bool(Sk_Scanner* scanner);
-static Sk_JsonNode*  Sk_parse_json_null(Sk_Scanner* scanner);
+static Sk_JsonNode*  Sk_parse_json_null();
 
 struct skJson {
     Sk_JsonNode* root;
@@ -81,7 +81,7 @@ Sk_JsonNode_new(Sk_Scanner* scanner)
         case SK_TRUE:
             return Sk_parse_json_bool(scanner);
         case SK_NULL:
-            return Sk_parse_json_null(scanner);
+            return Sk_parse_json_null();
         case SK_INVALID:
         default:
             return Sk_JsonErrorNode_new("Invalid syntax/token while parsing");
@@ -93,8 +93,6 @@ Sk_parse_json_object(Sk_Scanner* scanner)
 {
     /// Error indicator
     bool err = false;
-    /// Don't skip first token
-    bool start = true;
 
     /// Current member we are parsing
     Sk_JsonMember temp;
@@ -116,12 +114,7 @@ Sk_parse_json_object(Sk_Scanner* scanner)
     /// Else parse the member/s
     do {
 
-        if(!start) {
-            Sk_Scanner_skip(scanner, SK_WS, SK_NL);
-            token = Sk_Scanner_peek(scanner);
-        } else {
-            start = false;
-        }
+        Sk_Scanner_skip(scanner, SK_WS, SK_NL);
 
         if(token.type == SK_STRING) {
             temp.string = Sk_JsonString_new(token);
@@ -186,9 +179,6 @@ Sk_parse_json_array(Sk_Scanner* scanner)
     /// Error indicator
     bool err = false;
 
-    /// Don't skip first token
-    bool start = true;
-
     /// Current node we are parsing
     Sk_JsonNode* temp;
 
@@ -245,16 +235,15 @@ static Sk_JsonString
 Sk_JsonString_new(Sk_Token token)
 {
     /// Number of hexadecimal code points for UTF-16 encoding
-    static const u_char UNIC_HEX_UTF16_CODES = 4;
+    static const unsigned char UNIC_HEX_UTF16_CODES = 4;
 
     /// If string is empty "" return the empty string...
     if(token.lexeme.len == 0) {
         return SK_EMPTY_STRING;
     }
 
-    Sk_JsonString jstring;
-    int           c;
-    bool          hex = false;
+    int  c;
+    bool hex = false;
 
     Sk_CharIter iterator = Sk_CharIter_from_slice(&token.lexeme);
 
@@ -295,22 +284,22 @@ Sk_JsonString_new(Sk_Token token)
         }
     }
 
-    size_t        bytes = token.lexeme.len;
-    Sk_JsonString str   = malloc(bytes + 1); /// +1 for null terminator
+    size_t        bytes   = token.lexeme.len;
+    Sk_JsonString jstring = malloc(bytes + 1); /// +1 for null terminator
 
     /// Allocation failed
-    if(str == NULL) {
+    if(jstring == NULL) {
         PRINT_OOM_ERR;
         return NULL;
     }
 
     /// Copy over 'bytes' amount into str
-    str = strncpy(str, token.lexeme.ptr, bytes);
+    jstring = strncpy(jstring, token.lexeme.ptr, bytes);
     /// Null terminate the str (that's why we added +1 to malloc)
-    str[bytes] = '\0';
+    jstring[bytes] = '\0';
     /// Sanity check
-    assert(strlen(str) == bytes + 1);
-    return str;
+    assert(strlen(jstring) == bytes + 1);
+    return jstring;
 }
 
 static Sk_JsonNode*
@@ -340,18 +329,14 @@ Sk_parse_json_number(Sk_Scanner* scanner)
     /// Fetch the first DIGIT or HYPHEN token
     Sk_Token token = Sk_Scanner_peek(scanner);
 
-    /// Mark the start of the Json Number
-    char* start = Sk_CharIter_current(&scanner->iter);
+    /// Store the start of the Json Number
+    char* start = Sk_CharIter_next_address(&scanner->iter);
 
     /// Flags for control flow and validity check
-    bool negative      = false;
-    bool zero          = false;
-    bool integer       = false;
-    bool decimal_point = false;
-    bool fraction      = false;
-    bool exp           = false;
-    bool sign          = false;
-    bool err           = false;
+    bool negative = false;
+    bool integer  = false;
+    bool fraction = false;
+    bool sign     = false;
 
     /// If first token is HYPHEN
     if(token.type == SK_HYPHEN) {
@@ -366,15 +351,13 @@ Sk_parse_json_number(Sk_Scanner* scanner)
         /// We have integer
         integer = true;
 
+        /// Integer part is zero
         if(token.type == SK_ZERO) {
-            /// Integer is zero
-            zero = true;
             /// Fetch the next token
             token = Sk_Scanner_next(scanner);
             /// If token is a digit that is invalid
             /// integer, goto error
             if(token.type == SK_DIGIT) {
-                err = true;
                 goto jmp_err;
             }
         } else {
@@ -387,7 +370,6 @@ Sk_parse_json_number(Sk_Scanner* scanner)
     /// aka minus sign, that is invalid number, goto error
     else if(negative)
     {
-        err = true;
         goto jmp_err;
     }
 
@@ -398,7 +380,6 @@ Sk_parse_json_number(Sk_Scanner* scanner)
         /// If we have a decimal point but no
         /// integer part, that is invalid json number
         if(!integer) {
-            err = true;
             goto jmp_err;
         }
 
@@ -412,7 +393,6 @@ Sk_parse_json_number(Sk_Scanner* scanner)
 
         /// If fraction is invalid, goto error
         if(!fraction) {
-            err = true;
             goto jmp_err;
         }
     }
@@ -424,7 +404,6 @@ Sk_parse_json_number(Sk_Scanner* scanner)
         /// If there is no fractional part, then we can't have
         /// exponent part, goto error
         if(!fraction) {
-            err = true;
             goto jmp_err;
         }
 
@@ -438,7 +417,6 @@ Sk_parse_json_number(Sk_Scanner* scanner)
 
         /// If exponent doesn't have a sign it is invalid, goto error
         if(!sign) {
-            err = true;
             goto jmp_err;
         }
 
@@ -450,13 +428,12 @@ Sk_parse_json_number(Sk_Scanner* scanner)
         /// Exponent is invalid, it contains no digits, goto error
         else
         {
-            err = true;
             goto jmp_err;
         }
     }
 
     /// Set the end of the token stream
-    char*         end = scanner->token.lexeme.ptr;
+    char*         end = Sk_CharIter_next_address(&scanner->iter);
     /// Convert the stream into number (double)
     Sk_JsonDouble number = strtod(start, &end);
 
@@ -497,7 +474,7 @@ Sk_parse_json_bool(Sk_Scanner* scanner)
 }
 
 inline Sk_JsonNode*
-Sk_parse_json_null(Sk_Scanner* scanner)
+Sk_parse_json_null()
 {
     /// Just construct Json Null node
     return Sk_JsonNullNode_new();

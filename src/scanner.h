@@ -17,9 +17,12 @@ Sk_Scanner *Sk_Scanner_new(void *buffer, size_t bufsize);
 
 Sk_Token Sk_Scanner_next(Sk_Scanner *scanner);
 
-/// Inlined and shared across multiple .c files
-inline Sk_Token Sk_Scanner_peek(const Sk_Scanner* scanner) { return scanner->token; }
+Sk_Token Sk_Scanner_peek(const Sk_Scanner* scanner);
 
 void Sk_Scanner_skip(Sk_Scanner *scanner, size_t n, ...);
+
+void Sk_Scanner_skip_until(Sk_Scanner* scanner, size_t n, ...);
+
+void Sk_Token_print(Sk_Token token);
 
 #endif

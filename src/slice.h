@@ -79,10 +79,14 @@ int Sk_CharIter_peek(const Sk_CharIter *iterator);
 /**
  * Returns pointer to the current value the ITERATOR is pointing at.
  */
-char *Sk_CharIter_current(const Sk_CharIter *iterator);
+char *Sk_CharIter_next_address(const Sk_CharIter *iterator);
 
 int Sk_CharIter_advance(Sk_CharIter *iterator, size_t amount);
 
-inline void Sk_CharIter_drain(Sk_CharIter *iterator);
+inline void Sk_CharIter_drain(Sk_CharIter *iterator) {
+  if (iterator != NULL) {
+    iterator->next = NULL;
+  }
+}
 
 #endif
