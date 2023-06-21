@@ -1,15 +1,16 @@
-#include "../src/scanner.h"
+#include "../src/parser.h"
 #include <criterion/criterion.h>
+#include <criterion/internal/assert.h>
 #include <fcntl.h>
 #include <unistd.h>
 
+Sk_Scanner* scanner;
 char        buf[BUFSIZ];
 int         fd;
 int         n;
-Sk_Scanner* scanner = NULL;
 
 void
-setup(void)
+json_setup(void)
 {
     printf("\n\n\n");
     if((fd = open("test.json", 'r')) == -1) {
@@ -18,37 +19,34 @@ setup(void)
     }
 
     n = read(fd, buf, BUFSIZ);
+
+    scanner = Sk_Scanner_new(buf, n);
 }
 
 void
-teardown(void)
+json_teardown(void)
 {
-    close(fd);
     free(scanner);
+    close(fd);
 }
 
-Test(SkScanner, ParseTokens, .init = setup, .fini = teardown)
+TestSuite(SkJson, .init = json_setup, .fini = json_teardown);
+
+Test(SkJson, ParseTokens)
 {
-    scanner = Sk_Scanner_new(buf, n);
     cr_assert(scanner != NULL);
 
     Sk_Token token = Sk_Scanner_next(scanner);
     cr_assert(SK_LCURLY == token.type);
     cr_assert(SK_LCURLY == Sk_Scanner_peek(scanner).type);
-    cr_assert(token.lexeme.len == 0);
-    cr_assert(token.lexeme.ptr == NULL);
 
     token = Sk_Scanner_next(scanner);
     cr_assert(SK_NL == token.type);
     cr_assert(SK_NL == Sk_Scanner_peek(scanner).type);
-    cr_assert(token.lexeme.len == 0);
-    cr_assert(token.lexeme.ptr == NULL);
 
     token = Sk_Scanner_next(scanner);
     cr_assert(SK_WS == token.type);
     cr_assert(SK_WS == Sk_Scanner_peek(scanner).type);
-    cr_assert(token.lexeme.len == 0);
-    cr_assert(token.lexeme.ptr == NULL);
 
     token = Sk_Scanner_next(scanner);
     cr_assert(SK_STRING == token.type);
@@ -60,38 +58,26 @@ Test(SkScanner, ParseTokens, .init = setup, .fini = teardown)
     token = Sk_Scanner_next(scanner);
     cr_assert(SK_COLON == token.type);
     cr_assert(SK_COLON == Sk_Scanner_peek(scanner).type);
-    cr_assert(token.lexeme.ptr == NULL);
-    cr_assert(token.lexeme.len == 0);
 
     token = Sk_Scanner_next(scanner);
     cr_assert(SK_WS == token.type);
     cr_assert(SK_WS == Sk_Scanner_peek(scanner).type);
-    cr_assert(token.lexeme.ptr == NULL);
-    cr_assert(token.lexeme.len == 0);
 
     token = Sk_Scanner_next(scanner);
     cr_assert(SK_LCURLY == token.type);
     cr_assert(SK_LCURLY == Sk_Scanner_peek(scanner).type);
-    cr_assert(token.lexeme.ptr == NULL);
-    cr_assert(token.lexeme.len == 0);
 
     token = Sk_Scanner_next(scanner);
     cr_assert(SK_NL == token.type);
     cr_assert(SK_NL == Sk_Scanner_peek(scanner).type);
-    cr_assert(token.lexeme.ptr == NULL);
-    cr_assert(token.lexeme.len == 0);
 
     token = Sk_Scanner_next(scanner);
     cr_assert(SK_WS == token.type);
     cr_assert(SK_WS == Sk_Scanner_peek(scanner).type);
-    cr_assert(token.lexeme.ptr == NULL);
-    cr_assert(token.lexeme.len == 0);
 
     token = Sk_Scanner_next(scanner);
     cr_assert(SK_WS == token.type);
     cr_assert(SK_WS == Sk_Scanner_peek(scanner).type);
-    cr_assert(token.lexeme.ptr == NULL);
-    cr_assert(token.lexeme.len == 0);
 
     token = Sk_Scanner_next(scanner);
     cr_assert(SK_STRING == token.type);
@@ -103,14 +89,10 @@ Test(SkScanner, ParseTokens, .init = setup, .fini = teardown)
     token = Sk_Scanner_next(scanner);
     cr_assert(SK_COLON == token.type);
     cr_assert(SK_COLON == Sk_Scanner_peek(scanner).type);
-    cr_assert(token.lexeme.ptr == NULL);
-    cr_assert(token.lexeme.len == 0);
 
     token = Sk_Scanner_next(scanner);
     cr_assert(SK_WS == token.type);
     cr_assert(SK_WS == Sk_Scanner_peek(scanner).type);
-    cr_assert(token.lexeme.ptr == NULL);
-    cr_assert(token.lexeme.len == 0);
 
     token = Sk_Scanner_next(scanner);
     cr_assert(SK_STRING == token.type);
@@ -122,8 +104,6 @@ Test(SkScanner, ParseTokens, .init = setup, .fini = teardown)
     token = Sk_Scanner_next(scanner);
     cr_assert(SK_COMMA == token.type);
     cr_assert(SK_COMMA == Sk_Scanner_peek(scanner).type);
-    cr_assert(token.lexeme.ptr == NULL);
-    cr_assert(token.lexeme.len == 0);
 
     Sk_Scanner_skip(scanner, 2, SK_WS, SK_NL);
     token = Sk_Scanner_peek(scanner);
@@ -218,4 +198,53 @@ Test(SkScanner, ParseTokens, .init = setup, .fini = teardown)
     cr_assert(SK_DIGIT == (token = Sk_Scanner_next(scanner)).type);
     cr_assert(SK_COMMA == (token = Sk_Scanner_next(scanner)).type);
     cr_assert(SK_NL == (token = Sk_Scanner_next(scanner)).type);
+
+    Sk_Scanner_skip_until(scanner, 1, SK_EOF);
+    cr_assert(SK_EOF == Sk_Scanner_peek(scanner).type);
+    cr_assert(SK_EOF == (token = Sk_Scanner_next(scanner)).type);
+}
+
+Test(SkJson, ParseObjects)
+{
+    cr_assert(scanner != NULL);
+
+    Sk_Token token = Sk_Scanner_next(scanner);
+    cr_assert(SK_LCURLY == token.type);
+
+    Sk_Scanner_skip(scanner, 2, SK_WS, SK_NL);
+    cr_assert(SK_STRING == (token = Sk_Scanner_peek(scanner)).type);
+
+    Sk_JsonNode* str_node = Sk_parse_json_string(scanner);
+    cr_assert(str_node != NULL);
+    cr_assert_eq(strcmp(str_node->data->j_string, "glossary"), 0);
+    cr_assert(str_node->type == SK_STRING_NODE);
+    Sk_JsonNode_drop(str_node);
+
+    Sk_Scanner_skip_until(scanner, 1, SK_DIGIT);
+    token = Sk_Scanner_peek(scanner);
+    cr_assert(SK_DIGIT == token.type);
+
+    Sk_JsonNode* num_node = Sk_parse_json_number(scanner);
+    cr_assert(num_node != NULL);
+    cr_assert_eq(num_node->data->j_int, 152);
+    cr_assert_eq(num_node->type, SK_INT_NODE);
+    Sk_JsonNode_drop(num_node);
+
+    Sk_Scanner_skip_until(scanner, 1, SK_HYPHEN);
+    token = Sk_Scanner_peek(scanner);
+    cr_assert_eq(token.type, SK_HYPHEN);
+
+    Sk_JsonNode* dbl_node = Sk_parse_json_number(scanner);
+    cr_assert(dbl_node->type == SK_DOUBLE_NODE);
+    cr_assert(dbl_node->data->j_double == -12.523e15);
+    Sk_JsonNode_drop(dbl_node);
+
+    Sk_Scanner_skip_until(scanner, 1, SK_NULL);
+    cr_assert(SK_NULL == Sk_Scanner_peek(scanner).type);
+    Sk_Scanner_skip_until(scanner, 1, SK_ZERO);
+    cr_assert(SK_ZERO == (token = Sk_Scanner_peek(scanner)).type);
+
+    Sk_JsonNode* err_node = Sk_parse_json_number(scanner);
+    cr_assert(SK_ERROR_NODE == err_node->type);
+    Sk_JsonNode_drop(err_node);
 }

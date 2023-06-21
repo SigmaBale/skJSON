@@ -19,7 +19,7 @@ DBUG_DEP_FILES := $(patsubst %.o,%.d,$(DBUG_OBJFILES))
 CC = gcc
 INCLUDES = -Isrc
 DEPFLAGS = -MD -MP
-DBUG = -DDBUG
+DBUG = -DSK_DBUG
 OPT_BUILD = -Os
 CFLAGS := -Wall -Werror -Wextra -Wpedantic -std=c99 $(OPT_BUILD) $(INCLUDES) $(DEPFLAGS)
 DBUG_CFLAGS := -Wall -Werror -Wextra -Wpedantic -std=c99 $(INCLUDES) $(DEPFLAGS)

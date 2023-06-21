@@ -12,6 +12,14 @@ Sk_JsonNode_default(void)
         PRINT_OOM_ERR;
     }
 
+    Sk_NodeData* data = malloc(sizeof(Sk_NodeData));
+
+    if(data == NULL) {
+        PRINT_OOM_ERR;
+    }
+
+    node->data = data;
+
     return node;
 }
 
@@ -69,7 +77,7 @@ Sk_JsonStringNode_new(Sk_JsonString str)
         return NULL;
     }
 
-    node->type           = (strlen(str) == 0) ? SK_EMPTYSTRING_NODE : SK_STRING_NODE;
+    node->type = (strlen(str) == 0) ? SK_EMPTYSTRING_NODE : SK_STRING_NODE;
     node->data->j_string = str;
 
     return node;

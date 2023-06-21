@@ -12,13 +12,13 @@
 
 #define SK_EMPTY_STRING ""
 
-static Sk_JsonString Sk_JsonString_new(Sk_Token token);
-static Sk_JsonNode*  Sk_parse_json_object(Sk_Scanner* scanner);
-static Sk_JsonNode*  Sk_parse_json_array(Sk_Scanner* scanner);
-static Sk_JsonNode*  Sk_parse_json_string(Sk_Scanner* scanner);
-static Sk_JsonNode*  Sk_parse_json_number(Sk_Scanner* scanner);
-static Sk_JsonNode*  Sk_parse_json_bool(Sk_Scanner* scanner);
-static Sk_JsonNode*  Sk_parse_json_null();
+Sk_JsonString Sk_JsonString_new(Sk_Token token);
+Sk_JsonNode*  Sk_parse_json_object(Sk_Scanner* scanner);
+Sk_JsonNode*  Sk_parse_json_array(Sk_Scanner* scanner);
+Sk_JsonNode*  Sk_parse_json_string(Sk_Scanner* scanner);
+Sk_JsonNode*  Sk_parse_json_number(Sk_Scanner* scanner);
+Sk_JsonNode*  Sk_parse_json_bool(Sk_Scanner* scanner);
+Sk_JsonNode*  Sk_parse_json_null();
 
 struct skJson {
     Sk_JsonNode* root;
@@ -46,8 +46,7 @@ sk_json_new(void* buff, size_t bufsize)
         return NULL;
     }
 
-    /// Fetch first token and construct the root node
-    Sk_Scanner_next(scanner);
+    /// Construct the parse tree
     root = Sk_JsonNode_new(scanner);
 
     if(root == NULL) {
@@ -75,6 +74,7 @@ Sk_JsonNode_new(Sk_Scanner* scanner)
         case SK_STRING:
             return Sk_parse_json_string(scanner);
         case SK_HYPHEN:
+        case SK_ZERO:
         case SK_DIGIT:
             return Sk_parse_json_number(scanner);
         case SK_FALSE:
@@ -88,7 +88,7 @@ Sk_JsonNode_new(Sk_Scanner* scanner)
     }
 }
 
-static Sk_JsonNode*
+Sk_JsonNode*
 Sk_parse_json_object(Sk_Scanner* scanner)
 {
     /// Error indicator
@@ -104,7 +104,7 @@ Sk_parse_json_object(Sk_Scanner* scanner)
     Sk_Token token = Sk_Scanner_next(scanner);
 
     /// Skip whitespace (and tabs) and newlines
-    Sk_Scanner_skip(scanner, SK_WS, SK_NL);
+    Sk_Scanner_skip(scanner, 2, SK_WS, SK_NL);
 
     /// If next token is '}', return empty object '{}'
     if((token = Sk_Scanner_next(scanner)).type == SK_RCURLY) {
@@ -114,7 +114,7 @@ Sk_parse_json_object(Sk_Scanner* scanner)
     /// Else parse the member/s
     do {
 
-        Sk_Scanner_skip(scanner, SK_WS, SK_NL);
+        Sk_Scanner_skip(scanner, 2, SK_WS, SK_NL);
 
         if(token.type == SK_STRING) {
             temp.string = Sk_JsonString_new(token);
@@ -125,7 +125,7 @@ Sk_parse_json_object(Sk_Scanner* scanner)
             }
 
             /// Skip whitespaces
-            Sk_Scanner_skip(scanner, SK_WS);
+            Sk_Scanner_skip(scanner, 1, SK_WS);
             /// Fetch current non-whitespace token
             token = Sk_Scanner_peek(scanner);
 
@@ -135,7 +135,7 @@ Sk_parse_json_object(Sk_Scanner* scanner)
             }
 
             /// Skip whitespaces
-            Sk_Scanner_skip(scanner, SK_WS);
+            Sk_Scanner_skip(scanner, 1, SK_WS);
 
             /// Fetch value (enter recursion)
             temp.value = Sk_JsonNode_new(scanner);
@@ -155,7 +155,7 @@ Sk_parse_json_object(Sk_Scanner* scanner)
         /// Add new member to the object
         Sk_Vec_push(&members, &temp);
 
-        Sk_Scanner_skip(scanner, SK_WS, SK_NL);
+        Sk_Scanner_skip(scanner, 2, SK_WS, SK_NL);
 
     } while((token = Sk_Scanner_peek(scanner)).type == SK_COMMA);
 
@@ -165,6 +165,10 @@ Sk_parse_json_object(Sk_Scanner* scanner)
         /// Cleanup the Members of the Object before returning error
         Sk_Vec_drop(&members, (FreeFn) Sk_JsonMember_drop);
 
+        /// Skip this depth where error occured so we can
+        /// continue parsing the rest of the file
+        Sk_CharIter_depth_above(&scanner->iter);
+
         /// Return error
         return Sk_JsonErrorNode_new("failed parsing json object");
     }
@@ -173,7 +177,7 @@ Sk_parse_json_object(Sk_Scanner* scanner)
     return Sk_JsonObjectNode_new(members);
 }
 
-static Sk_JsonNode*
+Sk_JsonNode*
 Sk_parse_json_array(Sk_Scanner* scanner)
 {
     /// Error indicator
@@ -186,7 +190,7 @@ Sk_parse_json_array(Sk_Scanner* scanner)
     Sk_Vec nodes = Sk_Vec_new(sizeof(Sk_JsonNode*));
 
     /// Skip spaces
-    Sk_Scanner_skip(scanner, SK_WS, SK_NL);
+    Sk_Scanner_skip(scanner, 2, SK_WS, SK_NL);
     Sk_Token token = Sk_Scanner_peek(scanner);
 
     /// If next token ']' return empty array '[]'
@@ -197,7 +201,7 @@ Sk_parse_json_array(Sk_Scanner* scanner)
     /// Else parse the node/s
     do {
         /// Skip spaces (does nothing first iteration)
-        Sk_Scanner_skip(scanner, SK_WS, SK_NL);
+        Sk_Scanner_skip(scanner, 2, SK_WS, SK_NL);
 
         /// Parse the node
         temp = Sk_JsonNode_new(scanner);
@@ -211,7 +215,7 @@ Sk_parse_json_array(Sk_Scanner* scanner)
         /// Add newly parsed node to the nodes
         Sk_Vec_push(&nodes, temp);
 
-        Sk_Scanner_skip(scanner, SK_WS, SK_NL);
+        Sk_Scanner_skip(scanner, 2, SK_WS, SK_NL);
 
     } while((token = Sk_Scanner_peek(scanner)).type == SK_COMMA);
 
@@ -220,6 +224,10 @@ Sk_parse_json_array(Sk_Scanner* scanner)
 
         /// Cleanup the Nodes of the Array before returning error
         Sk_Vec_drop(&nodes, (FreeFn) Sk_JsonNode_drop);
+
+        /// Skip this depth where error occured, so we can
+        /// continue parsing the rest of the file
+        Sk_CharIter_depth_above(&scanner->iter);
 
         /// Retrun error
         return Sk_JsonErrorNode_new("failed parsing json array");
@@ -231,7 +239,7 @@ Sk_parse_json_array(Sk_Scanner* scanner)
 
 /// Checks the validity of a string and allocates
 /// storage for it if the json string is valid
-static Sk_JsonString
+Sk_JsonString
 Sk_JsonString_new(Sk_Token token)
 {
     /// Number of hexadecimal code points for UTF-16 encoding
@@ -297,12 +305,13 @@ Sk_JsonString_new(Sk_Token token)
     jstring = strncpy(jstring, token.lexeme.ptr, bytes);
     /// Null terminate the str (that's why we added +1 to malloc)
     jstring[bytes] = '\0';
-    /// Sanity check
-    assert(strlen(jstring) == bytes + 1);
+#ifdef SK_DBUG
+    assert(strlen(jstring) == bytes);
+#endif
     return jstring;
 }
 
-static Sk_JsonNode*
+Sk_JsonNode*
 Sk_parse_json_string(Sk_Scanner* scanner)
 {
     /// Get the SK_STRING token
@@ -311,6 +320,7 @@ Sk_parse_json_string(Sk_Scanner* scanner)
 
     /// Parse the Json String
     if((jstring = Sk_JsonString_new(token)) == NULL) {
+        Sk_CharIter_depth_above(&scanner->iter);
         /// Parsing failed, return error
         return Sk_JsonErrorNode_new("failed to parse Json String");
     }
@@ -323,27 +333,24 @@ Sk_parse_json_string(Sk_Scanner* scanner)
 /// all be nested like this:
 /// is_digit -> is_fraction -> is_exponent
 /// (would result in some code being nested 5 levels deep...)
-static Sk_JsonNode*
+Sk_JsonNode*
 Sk_parse_json_number(Sk_Scanner* scanner)
 {
-    /// Fetch the first DIGIT or HYPHEN token
+    /// Fetch the first token (either a digit, zero or hyphen)
     Sk_Token token = Sk_Scanner_peek(scanner);
-
     /// Store the start of the Json Number
-    char* start = Sk_CharIter_next_address(&scanner->iter);
+    char*    start = Sk_CharIter_next_address(&scanner->iter) - 1;
 
     /// Flags for control flow and validity check
     bool negative = false;
     bool integer  = false;
     bool fraction = false;
-    bool sign     = false;
 
     /// If first token is HYPHEN
     if(token.type == SK_HYPHEN) {
         /// We have a 'negative' number
         negative = true;
-        /// Then just skip and fetch new one
-        token = Sk_Scanner_next(scanner);
+        token    = Sk_Scanner_next(scanner);
     }
 
     /// If we have a digit (1-9) or zero (0) parse the integer part
@@ -353,23 +360,18 @@ Sk_parse_json_number(Sk_Scanner* scanner)
 
         /// Integer part is zero
         if(token.type == SK_ZERO) {
-            /// Fetch the next token
             token = Sk_Scanner_next(scanner);
-            /// If token is a digit that is invalid
-            /// integer, goto error
-            if(token.type == SK_DIGIT) {
+            if(token.type == SK_DIGIT || token.type == SK_ZERO) {
                 goto jmp_err;
             }
         } else {
             /// If we got digit (1-9), skip them all including
-            /// zeroes until we git non digit and non zero token
-            Sk_Scanner_skip(scanner, SK_DIGIT, SK_ZERO);
+            /// zeroes until we get non digit and non zero token
+            Sk_Scanner_skip(scanner, 2, SK_DIGIT, SK_ZERO);
         }
-    }
-    /// If we didn't find integer part but we have a HYPHEN
-    /// aka minus sign, that is invalid number, goto error
-    else if(negative)
-    {
+    } else if(negative) {
+        /// If we didn't find integer part but we have a HYPHEN
+        /// aka minus sign, that is invalid number, goto error
         goto jmp_err;
     }
 
@@ -381,6 +383,8 @@ Sk_parse_json_number(Sk_Scanner* scanner)
         /// integer part, that is invalid json number
         if(!integer) {
             goto jmp_err;
+        } else {
+            Sk_Scanner_next(scanner);
         }
 
         /// If we have a digit/zero after decimal point then we have a valid fraction
@@ -388,7 +392,7 @@ Sk_parse_json_number(Sk_Scanner* scanner)
             /// Set fraction as valid
             fraction = true;
             /// Skip the rest of digits
-            Sk_Scanner_skip(scanner, SK_DIGIT, SK_ZERO);
+            Sk_Scanner_skip(scanner, 2, SK_DIGIT, SK_ZERO);
         }
 
         /// If fraction is invalid, goto error
@@ -408,26 +412,17 @@ Sk_parse_json_number(Sk_Scanner* scanner)
         }
 
         /// Check if exponent has a sign
-        if((token = Sk_Scanner_next(scanner)).type == SK_HYPHEN || token.type == SK_PLUS) {
-            /// Exponent has a sign, keep parsing
-            sign = true;
-            /// Fetch the next token
-            token = Sk_Scanner_next(scanner);
-        }
-
-        /// If exponent doesn't have a sign it is invalid, goto error
-        if(!sign) {
+        if((token = Sk_Scanner_next(scanner)).type != SK_HYPHEN && token.type != SK_PLUS) {
+            /// If exponent doesn't have a sign it is invalid, goto error
             goto jmp_err;
         }
 
         /// Exponent must contain digits/zero-es in order to be valid
-        if(Sk_Scanner_peek(scanner).type == SK_DIGIT) {
+        if((token = Sk_Scanner_next(scanner)).type == SK_DIGIT || token.type == SK_ZERO) {
             /// Exponent is valid, skip the rest of the digits/zeroes
-            Sk_Scanner_skip(scanner, SK_DIGIT, SK_ZERO);
-        }
-        /// Exponent is invalid, it contains no digits, goto error
-        else
-        {
+            Sk_Scanner_skip(scanner, 2, SK_DIGIT, SK_ZERO);
+        } else {
+            /// Exponent is invalid, it contains no digits, goto error
             goto jmp_err;
         }
     }
@@ -454,8 +449,44 @@ Sk_parse_json_number(Sk_Scanner* scanner)
     }
 
 jmp_err:
-    /// We errored during parsing
+    /// Skip entire json object/array to continue parsing rest of the file
+    Sk_CharIter_depth_above(&scanner->iter);
+    /// Finally return the error node
     return Sk_JsonErrorNode_new("failed to parse Json Number");
+}
+
+void
+print_node(Sk_JsonNode* node)
+{
+    switch(node->type) {
+        case SK_ERROR_NODE:
+            printf("ERROR NODE\n");
+            break;
+        case SK_OBJECT_NODE:
+            printf("OBJECT NODE\n");
+            break;
+        case SK_ARRAY_NODE:
+            printf("ARRAY NODE\n");
+            break;
+        case SK_STRING_NODE:
+            printf("STRING NODE\n");
+            break;
+        case SK_EMPTYSTRING_NODE:
+            printf("EMPTYSTRING NODE\n");
+            break;
+        case SK_INT_NODE:
+            printf("INT NODE\n");
+            break;
+        case SK_DOUBLE_NODE:
+            printf("DOUBLE NODE\n");
+            break;
+        case SK_BOOL_NODE:
+            printf("BOOL NODE\n");
+            break;
+        case SK_NULL_NODE:
+            printf("NULL NODE\n");
+            break;
+    }
 }
 
 Sk_JsonNode*

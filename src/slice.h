@@ -83,10 +83,8 @@ char *Sk_CharIter_next_address(const Sk_CharIter *iterator);
 
 int Sk_CharIter_advance(Sk_CharIter *iterator, size_t amount);
 
-inline void Sk_CharIter_drain(Sk_CharIter *iterator) {
-  if (iterator != NULL) {
-    iterator->next = NULL;
-  }
-}
+void Sk_CharIter_drain(Sk_CharIter *iterator);
+
+void Sk_CharIter_depth_above(Sk_CharIter *iterator);
 
 #endif

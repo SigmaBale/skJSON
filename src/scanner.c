@@ -51,16 +51,18 @@ Sk_Scanner_skip(Sk_Scanner* scanner, size_t n, ...)
 
     va_start(ap, n);
 
-    for(i = 0; n > i;) {
-        types[i++] = va_arg(ap, Sk_TokenType);
+    for(i = 0; n > i; i++) {
+        types[i] = va_arg(ap, Sk_TokenType);
     }
 
     token = Sk_Scanner_next(scanner);
 
     for(i = 0; n > i; i++) {
         if(types[i] == token.type) {
-            token = Sk_Scanner_next(scanner);
-            i     = -1;
+            if((token = Sk_Scanner_next(scanner)).type == SK_EOF) {
+                return;
+            }
+            i = -1;
         }
     }
 
@@ -87,7 +89,7 @@ Sk_Scanner_skip_until(Sk_Scanner* scanner, size_t n, ...)
 
     token = Sk_Scanner_next(scanner);
 
-    while(true) {
+    while(token.type != SK_EOF) {
         for(i = 0; n > i; i++) {
             if(types[i] == token.type) {
                 return;
@@ -98,7 +100,7 @@ Sk_Scanner_skip_until(Sk_Scanner* scanner, size_t n, ...)
 }
 
 static void
-_Sk_Scanner_set_string_token(Sk_Scanner* scanner)
+Sk_Scanner_set_string_token(Sk_Scanner* scanner)
 {
     int          c;
     size_t       len;
@@ -125,7 +127,7 @@ _Sk_Scanner_set_string_token(Sk_Scanner* scanner)
 #define in_bounds(iter, bound) (iter)->end >= (bound)
 
 static void
-_Sk_Scanner_set_bool_or_null_token(Sk_Scanner* scanner, char ch)
+Sk_Scanner_set_bool_or_null_token(Sk_Scanner* scanner, char ch)
 {
     char*        start        = Sk_CharIter_next_address(&scanner->iter) - 1;
     Sk_CharIter* iter         = &scanner->iter;
@@ -261,16 +263,16 @@ Sk_Scanner_next(Sk_Scanner* scanner)
     char* ch = Sk_CharIter_next_address(&scanner->iter);
     switch((c = Sk_CharIter_next(&scanner->iter))) {
         case '{':
-            *token = Sk_Token_new(SK_LCURLY, NULL, 0);
+            *token = Sk_Token_new(SK_LCURLY, ch, 1);
             break;
         case '}':
-            *token = Sk_Token_new(SK_RCURLY, NULL, 0);
+            *token = Sk_Token_new(SK_RCURLY, ch, 1);
             break;
         case '[':
-            *token = Sk_Token_new(SK_RBRACK, NULL, 0);
+            *token = Sk_Token_new(SK_RBRACK, ch, 1);
             break;
         case ']':
-            *token = Sk_Token_new(SK_LBRACK, NULL, 0);
+            *token = Sk_Token_new(SK_LBRACK, ch, 1);
             break;
         case ' ':
         case '\t':
@@ -280,41 +282,41 @@ Sk_Scanner_next(Sk_Scanner* scanner)
             *token = Sk_Token_new(SK_NL, NULL, 0);
             break;
         case '"':
-            _Sk_Scanner_set_string_token(scanner);
+            Sk_Scanner_set_string_token(scanner);
             break;
         case '.':
-            *token = Sk_Token_new(SK_DOT, NULL, 0);
+            *token = Sk_Token_new(SK_DOT, ch, 1);
             break;
         case '-':
-            *token = Sk_Token_new(SK_HYPHEN, NULL, 0);
+            *token = Sk_Token_new(SK_HYPHEN, ch, 1);
             break;
         case '+':
-            *token = Sk_Token_new(SK_PLUS, NULL, 0);
+            *token = Sk_Token_new(SK_PLUS, ch, 1);
             break;
         case ',':
-            *token = Sk_Token_new(SK_COMMA, NULL, 0);
+            *token = Sk_Token_new(SK_COMMA, ch, 1);
             break;
         case ':':
-            *token = Sk_Token_new(SK_COLON, NULL, 0);
+            *token = Sk_Token_new(SK_COLON, ch, 1);
             break;
         case 't':
-            _Sk_Scanner_set_bool_or_null_token(scanner, 't');
+            Sk_Scanner_set_bool_or_null_token(scanner, 't');
             break;
         case 'f':
-            _Sk_Scanner_set_bool_or_null_token(scanner, 'f');
+            Sk_Scanner_set_bool_or_null_token(scanner, 'f');
             break;
         case 'n':
-            _Sk_Scanner_set_bool_or_null_token(scanner, 'n');
+            Sk_Scanner_set_bool_or_null_token(scanner, 'n');
             break;
         case 'e':
         case 'E':
-            *token = Sk_Token_new(SK_EXP, NULL, 0);
+            *token = Sk_Token_new(SK_EXP, ch, 1);
             break;
         case EOF:
             *token = Sk_Token_new(SK_EOF, NULL, 0);
             break;
         case '0':
-            *token = Sk_Token_new(SK_ZERO, NULL, 0);
+            *token = Sk_Token_new(SK_ZERO, ch, 1);
             break;
         case '1':
         case '2':

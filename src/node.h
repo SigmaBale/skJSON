@@ -22,6 +22,7 @@ typedef enum {
   SK_NULL_NODE = 7
 } Sk_NodeType;
 
+
 typedef union Sk_NodeData Sk_NodeData;
 typedef const char *Sk_JsonError;
 typedef struct Sk_JsonObject Sk_JsonObject;
@@ -77,5 +78,7 @@ void Sk_JsonArray_drop(Sk_JsonArray *array);
 void Sk_JsonObject_drop(Sk_JsonObject *object);
 void Sk_JsonMember_drop(Sk_JsonMember *member);
 void Sk_JsonNode_drop(Sk_JsonNode *);
+
+void print_node(Sk_JsonNode *node);
 
 #endif
