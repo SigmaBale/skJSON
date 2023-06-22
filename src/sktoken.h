@@ -1,7 +1,7 @@
 #ifndef __SK_TOKEN_H__
 #define __SK_TOKEN_H__
 
-#include "slice.h"
+#include "skslice.h"
 
 typedef enum {
   SK_INVALID,
@@ -24,11 +24,11 @@ typedef enum {
   SK_NULL,
   SK_COMMA,
   SK_COLON,
-} Sk_TokenType;
+} skTokenType;
 
 typedef struct {
-  Sk_TokenType type;
-  Sk_StrSlice lexeme;
-} Sk_Token;
+  skTokenType type;
+  skStrSlice lexeme;
+} skToken;
 
 #endif

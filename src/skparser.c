@@ -1,8 +1,8 @@
 // clang-format off
-#include "token.h"
-#include "scanner.h"
-#include "node.h"
-#include "parser.h"
+#include "sktoken.h"
+#include "skscanner.h"
+#include "sknode.h"
+#include "skparser.h"
 #include <assert.h>
 #include <ctype.h>
 #include <errno.h>
@@ -12,16 +12,19 @@
 
 #define SK_EMPTY_STRING ""
 
-Sk_JsonString Sk_JsonString_new(Sk_Token token);
-Sk_JsonNode*  Sk_parse_json_object(Sk_Scanner* scanner);
-Sk_JsonNode*  Sk_parse_json_array(Sk_Scanner* scanner);
-Sk_JsonNode*  Sk_parse_json_string(Sk_Scanner* scanner);
-Sk_JsonNode*  Sk_parse_json_number(Sk_Scanner* scanner);
-Sk_JsonNode*  Sk_parse_json_bool(Sk_Scanner* scanner);
-Sk_JsonNode*  Sk_parse_json_null();
+#define null_check(object) \
+    if((object) == NULL) return NULL
+
+skJsonString skJsonString_new(skToken token);
+skJsonNode*  skparse_json_object(skScanner* scanner, skJsonNode* parent);
+skJsonNode*  skparse_json_array(skScanner* scanner, skJsonNode* parent);
+skJsonNode*  skparse_json_string(skScanner* scanner, skJsonNode* parent);
+skJsonNode*  skparse_json_number(skScanner* scanner, skJsonNode* parent);
+skJsonNode*  skparse_json_bool(skScanner* scanner, skJsonNode* parent);
+skJsonNode*  skparse_json_null(skScanner* scanner, skJsonNode* parent);
 
 struct skJson {
-    Sk_JsonNode* root;
+    skJsonNode* root;
 };
 
 skJson*
@@ -31,8 +34,8 @@ sk_json_new(void* buff, size_t bufsize)
         return NULL;
     }
 
-    Sk_JsonNode* root;
-    Sk_Scanner*  scanner = Sk_Scanner_new(buff, bufsize);
+    skJsonNode* root;
+    skScanner*  scanner = skScanner_new(buff, bufsize);
 
     if(scanner == NULL) {
         return NULL;
@@ -47,7 +50,7 @@ sk_json_new(void* buff, size_t bufsize)
     }
 
     /// Construct the parse tree
-    root = Sk_JsonNode_new(scanner);
+    root = skJsonNode_new(scanner, NULL);
 
     if(root == NULL) {
         free(scanner);
@@ -60,74 +63,79 @@ sk_json_new(void* buff, size_t bufsize)
     return json;
 }
 
-Sk_JsonNode*
-Sk_JsonNode_new(Sk_Scanner* scanner)
+skJsonNode*
+skJsonNode_new(skScanner* scanner, skJsonNode* parent)
 {
     /// Peek at current token without advancing
-    Sk_Token next = Sk_Scanner_peek(scanner);
+    skToken next = skScanner_peek(scanner);
 
     switch(next.type) {
         case SK_LCURLY:
-            return Sk_parse_json_object(scanner);
+            return skparse_json_object(scanner, parent);
         case SK_LBRACK:
-            return Sk_parse_json_array(scanner);
+            return skparse_json_array(scanner, parent);
         case SK_STRING:
-            return Sk_parse_json_string(scanner);
+            return skparse_json_string(scanner, parent);
         case SK_HYPHEN:
         case SK_ZERO:
         case SK_DIGIT:
-            return Sk_parse_json_number(scanner);
+            return skparse_json_number(scanner, parent);
         case SK_FALSE:
         case SK_TRUE:
-            return Sk_parse_json_bool(scanner);
+            return skparse_json_bool(scanner, parent);
         case SK_NULL:
-            return Sk_parse_json_null();
+            return skparse_json_null(scanner, parent);
         case SK_INVALID:
         default:
-            return Sk_JsonErrorNode_new("Invalid syntax/token while parsing");
+            return skJsonErrorNode_new("Invalid syntax/token while parsing",
+                                       parent);
     }
 }
 
-Sk_JsonNode*
-Sk_parse_json_object(Sk_Scanner* scanner)
+skJsonNode*
+skparse_json_object(skScanner* scanner, skJsonNode* parent)
 {
     /// Error indicator
-    bool err = false;
+    bool err   = false;
+    bool start = true;
 
-    /// Current member we are parsing
-    Sk_JsonMember temp;
+    /// Current member we are parsing (key/value pair)
+    skJsonString key   = NULL;
+    skJsonNode*  value = NULL;
 
-    /// Collection of members for this object
-    Sk_Vec members = Sk_Vec_new(sizeof(Sk_JsonMember));
+    /// Json Object
+    skJsonNode* object_node = skJsonObject_new(parent);
+    null_check(object_node);
+    /// Lookup table
+    skHashTable* table = object_node->data.j_object;
 
-    /// Take the already known token '{'
-    Sk_Token token = Sk_Scanner_next(scanner);
+    /// Take the first token after '{'
+    skToken token = skScanner_next(scanner);
 
     /// Skip whitespace (and tabs) and newlines
-    Sk_Scanner_skip(scanner, 2, SK_WS, SK_NL);
+    skScanner_skip(scanner, 2, SK_WS, SK_NL);
 
     /// If next token is '}', return empty object '{}'
-    if((token = Sk_Scanner_next(scanner)).type == SK_RCURLY) {
-        return Sk_JsonObjectNode_new(members);
+    if((token = skScanner_next(scanner)).type == SK_RCURLY) {
+        return object_node;
     }
 
-    /// Else parse the member/s
     do {
-
-        Sk_Scanner_skip(scanner, 2, SK_WS, SK_NL);
+        if(!start) {
+            skScanner_next(scanner);
+            skScanner_skip(scanner, 2, SK_WS, SK_NL);
+        } else {
+            start = false;
+        }
 
         if(token.type == SK_STRING) {
-            temp.string = Sk_JsonString_new(token);
-
-            if(temp.string == NULL) {
-                err = true;
-                break;
-            }
+            key = skJsonString_new(token);
+            null_check(key);
 
             /// Skip whitespaces
-            Sk_Scanner_skip(scanner, 1, SK_WS);
+            skScanner_skip(scanner, 1, SK_WS);
             /// Fetch current non-whitespace token
-            token = Sk_Scanner_peek(scanner);
+            token = skScanner_peek(scanner);
 
             if(token.type != SK_COLON) {
                 err = true;
@@ -135,76 +143,82 @@ Sk_parse_json_object(Sk_Scanner* scanner)
             }
 
             /// Skip whitespaces
-            Sk_Scanner_skip(scanner, 1, SK_WS);
+            skScanner_skip(scanner, 1, SK_WS);
 
             /// Fetch value (enter recursion)
-            temp.value = Sk_JsonNode_new(scanner);
+            value = skJsonNode_new(scanner, parent);
+            null_check(value);
 
-            if(temp.value->type == SK_ERROR_NODE) {
+            if(value->type == SK_ERROR_NODE) {
                 err = true;
                 break;
             }
-        }
-        /// If token is not '}' or 'String', then error
-        else
-        {
+        } else {
+            /// If token is not '}' or 'String', then error
             err = true;
             break;
         }
 
-        /// Add new member to the object
-        Sk_Vec_push(&members, &temp);
+        /// Insert the JsonMember (key value pair) into the object node (table)
+        /// If we fails return NULL (out of memory)
+        if(!skHashTable_insert(table, key, value)) {
+            return NULL;
+        }
 
-        Sk_Scanner_skip(scanner, 2, SK_WS, SK_NL);
+        skScanner_skip(scanner, 2, SK_WS, SK_NL);
 
-    } while((token = Sk_Scanner_peek(scanner)).type == SK_COMMA);
+    } while((token = skScanner_peek(scanner)).type == SK_COMMA);
 
     /// Return ErrorNode if err occured or object isn't enclosed by '}'.
     if(err || token.type != SK_RCURLY) {
 
         /// Cleanup the Members of the Object before returning error
-        Sk_Vec_drop(&members, (FreeFn) Sk_JsonMember_drop);
-
-        /// Skip this depth where error occured so we can
-        /// continue parsing the rest of the file
-        Sk_CharIter_depth_above(&scanner->iter);
+        skHashTable_drop(table);
 
         /// Return error
-        return Sk_JsonErrorNode_new("failed parsing json object");
+        return skJsonErrorNode_new("failed parsing json object", parent);
     }
 
     /// Return valid Json Object.
-    return Sk_JsonObjectNode_new(members);
+    return object_node;
 }
 
-Sk_JsonNode*
-Sk_parse_json_array(Sk_Scanner* scanner)
+skJsonNode*
+skparse_json_array(skScanner* scanner, skJsonNode* parent)
 {
+    /// Fetch the first token '['
+    skToken token = skScanner_next(scanner);
+
     /// Error indicator
-    bool err = false;
+    bool err   = false;
+    bool start = true;
 
     /// Current node we are parsing
-    Sk_JsonNode* temp;
+    skJsonNode* temp;
 
-    /// Initialize storage for nodes
-    Sk_Vec nodes = Sk_Vec_new(sizeof(Sk_JsonNode*));
+    /// Json Array
+    skJsonNode* array_node = skJsonArray_new(parent);
+    null_check(array_node);
+
+    skVec* array = array_node->data.j_array;
 
     /// Skip spaces
-    Sk_Scanner_skip(scanner, 2, SK_WS, SK_NL);
-    Sk_Token token = Sk_Scanner_peek(scanner);
+    skScanner_skip(scanner, 2, SK_WS, SK_NL);
 
     /// If next token ']' return empty array '[]'
     if(token.type == SK_RBRACK) {
-        return Sk_JsonArrayNode_new(nodes);
+        return array_node;
     }
 
-    /// Else parse the node/s
     do {
-        /// Skip spaces (does nothing first iteration)
-        Sk_Scanner_skip(scanner, 2, SK_WS, SK_NL);
+        if(!start) {
+            skScanner_next(scanner);
+            skScanner_skip(scanner, 2, SK_WS, SK_NL);
+        } else {
+            start = false;
+        }
 
-        /// Parse the node
-        temp = Sk_JsonNode_new(scanner);
+        temp = skJsonNode_new(scanner, parent);
 
         /// If node parsing errored set err
         if(temp->type == SK_ERROR_NODE) {
@@ -213,34 +227,33 @@ Sk_parse_json_array(Sk_Scanner* scanner)
         }
 
         /// Add newly parsed node to the nodes
-        Sk_Vec_push(&nodes, temp);
+        skVec_push(array, temp);
 
-        Sk_Scanner_skip(scanner, 2, SK_WS, SK_NL);
+        skScanner_skip(scanner, 2, SK_WS, SK_NL);
 
-    } while((token = Sk_Scanner_peek(scanner)).type == SK_COMMA);
+    } while((token = skScanner_peek(scanner)).type == SK_COMMA);
 
     /// Return ErrorNode if err occured or array isn't enclosed by ']'
     if(err || token.type != SK_RBRACK) {
-
         /// Cleanup the Nodes of the Array before returning error
-        Sk_Vec_drop(&nodes, (FreeFn) Sk_JsonNode_drop);
+        skVec_drop(array, (FreeFn) skJsonNode_drop);
 
         /// Skip this depth where error occured, so we can
         /// continue parsing the rest of the file
-        Sk_CharIter_depth_above(&scanner->iter);
+        skCharIter_depth_above(&scanner->iter);
 
-        /// Retrun error
-        return Sk_JsonErrorNode_new("failed parsing json array");
+        /// Return error
+        return skJsonErrorNode_new("failed parsing json array", parent);
     }
 
     /// Return valid Json Array
-    return Sk_JsonArrayNode_new(nodes);
+    return array_node;
 }
 
 /// Checks the validity of a string and allocates
 /// storage for it if the json string is valid
-Sk_JsonString
-Sk_JsonString_new(Sk_Token token)
+skJsonString
+skJsonString_new(skToken token)
 {
     /// Number of hexadecimal code points for UTF-16 encoding
     static const unsigned char UNIC_HEX_UTF16_CODES = 4;
@@ -250,12 +263,17 @@ Sk_JsonString_new(Sk_Token token)
         return SK_EMPTY_STRING;
     }
 
+    printf("Parsing string, current token -> ");
+    skToken_print(token);
+    printf("\n");
+
     int  c;
     bool hex = false;
 
-    Sk_CharIter iterator = Sk_CharIter_from_slice(&token.lexeme);
+    skCharIter iterator = skCharIter_from_slice(&token.lexeme);
+    printf("First iterator char -> '%c'\n", *iterator.next);
 
-    while((c = Sk_CharIter_next(&iterator)) != EOF) {
+    while((c = skCharIter_next(&iterator)) != EOF) {
         if(c < 020) {
             return NULL;
         }
@@ -270,7 +288,7 @@ Sk_JsonString_new(Sk_Token token)
         hex = false;
 
         if(c == '\\') {
-            c = Sk_CharIter_next(&iterator);
+            c = skCharIter_next(&iterator);
 
             switch(c) {
                 case '\\':
@@ -292,8 +310,10 @@ Sk_JsonString_new(Sk_Token token)
         }
     }
 
-    size_t        bytes   = token.lexeme.len;
-    Sk_JsonString jstring = malloc(bytes + 1); /// +1 for null terminator
+    printf("Parsed all chars successfully\n");
+
+    size_t       bytes   = token.lexeme.len;
+    skJsonString jstring = malloc(bytes + 1); /// +1 for null terminator
 
     /// Allocation failed
     if(jstring == NULL) {
@@ -308,38 +328,48 @@ Sk_JsonString_new(Sk_Token token)
 #ifdef SK_DBUG
     assert(strlen(jstring) == bytes);
 #endif
+    printf("Returning valid jstring -> '%s'\n", jstring);
     return jstring;
 }
 
-Sk_JsonNode*
-Sk_parse_json_string(Sk_Scanner* scanner)
+skJsonNode*
+skparse_json_string(skScanner* scanner, skJsonNode* parent)
 {
     /// Get the SK_STRING token
-    Sk_Token      token   = Sk_Scanner_peek(scanner);
-    Sk_JsonString jstring = NULL;
+    skToken      token   = skScanner_peek(scanner);
+    skJsonString jstring = NULL;
 
+    printf("Passing token -> ");
+    skToken_print(token);
+    printf("\n");
     /// Parse the Json String
-    if((jstring = Sk_JsonString_new(token)) == NULL) {
-        Sk_CharIter_depth_above(&scanner->iter);
+    if((jstring = skJsonString_new(token)) == NULL) {
+        printf("Failed parsing jstring\n");
+        skCharIter_depth_above(&scanner->iter);
         /// Parsing failed, return error
-        return Sk_JsonErrorNode_new("failed to parse Json String");
+        return skJsonErrorNode_new("failed to parse Json String", parent);
     }
 
+    skScanner_next(scanner);
+    printf("Token after parsing string ");
+    skToken_print(skScanner_peek(scanner));
+
     /// Return valid Json String (null terminated)
-    return Sk_JsonStringNode_new(jstring);
+    return skJsonStringNode_new(jstring, parent);
 }
 
-/// A bit wierd control flow in order to avoid nesting too much, this could
-/// all be nested like this:
-/// is_digit -> is_fraction -> is_exponent
-/// (would result in some code being nested 5 levels deep...)
-Sk_JsonNode*
-Sk_parse_json_number(Sk_Scanner* scanner)
+skJsonNode*
+skparse_json_number(skScanner* scanner, skJsonNode* parent)
 {
     /// Fetch the first token (either a digit, zero or hyphen)
-    Sk_Token token = Sk_Scanner_peek(scanner);
+    skToken token = skScanner_peek(scanner);
+    printf("Parsing a number\n");
+    printf("Token -> ");
+    skToken_print(token);
+    printf("\n");
     /// Store the start of the Json Number
-    char*    start = Sk_CharIter_next_address(&scanner->iter) - 1;
+    char* start = skCharIter_next_address(&scanner->iter) - 1;
+    printf("Starting char -> '%c'\n", *start);
 
     /// Flags for control flow and validity check
     bool negative = false;
@@ -348,51 +378,73 @@ Sk_parse_json_number(Sk_Scanner* scanner)
 
     /// If first token is HYPHEN
     if(token.type == SK_HYPHEN) {
+        printf("Got hyphen, next token -> ");
         /// We have a 'negative' number
         negative = true;
-        token    = Sk_Scanner_next(scanner);
+        token    = skScanner_next(scanner);
+        skToken_print(token);
+        printf("\n");
     }
 
+    printf("Checking if there is integer part\n");
     /// If we have a digit (1-9) or zero (0) parse the integer part
     if(token.type == SK_DIGIT || token.type == SK_ZERO) {
+        printf("Got integer part\n");
         /// We have integer
         integer = true;
 
         /// Integer part is zero
         if(token.type == SK_ZERO) {
-            token = Sk_Scanner_next(scanner);
+            printf("Integer part is zero, next token -> ");
+            token = skScanner_next(scanner);
+            skToken_print(token);
+            printf("\n");
             if(token.type == SK_DIGIT || token.type == SK_ZERO) {
+                printf("Errored at integer part\n");
                 goto jmp_err;
             }
         } else {
+            printf("Integer part is non zero\n");
+            printf("Skipping digits and zeroes\n");
             /// If we got digit (1-9), skip them all including
             /// zeroes until we get non digit and non zero token
-            Sk_Scanner_skip(scanner, 2, SK_DIGIT, SK_ZERO);
+            skScanner_skip(scanner, 2, SK_DIGIT, SK_ZERO);
+            printf("Next token -> ");
+            skToken_print(token);
+            printf("\n");
         }
     } else if(negative) {
+        printf("Errored at negative sign integer part\n");
         /// If we didn't find integer part but we have a HYPHEN
         /// aka minus sign, that is invalid number, goto error
         goto jmp_err;
     }
 
     /// Let's check if there is fraction
-    token = Sk_Scanner_peek(scanner);
+    token = skScanner_peek(scanner);
+    printf("Checking if there is fraction -> ");
+    skToken_print(token);
+    printf("\n");
 
     if(token.type == SK_DOT) {
+        printf("We have a fraction\n");
         /// If we have a decimal point but no
         /// integer part, that is invalid json number
         if(!integer) {
             goto jmp_err;
         } else {
-            Sk_Scanner_next(scanner);
+            skScanner_next(scanner);
         }
 
-        /// If we have a digit/zero after decimal point then we have a valid fraction
-        if((token = Sk_Scanner_peek(scanner)).type == SK_DIGIT || token.type == SK_ZERO) {
+        /// If we have a digit/zero after decimal point then we have a valid
+        /// fraction
+        if((token = skScanner_peek(scanner)).type == SK_DIGIT
+           || token.type == SK_ZERO)
+        {
             /// Set fraction as valid
             fraction = true;
             /// Skip the rest of digits
-            Sk_Scanner_skip(scanner, 2, SK_DIGIT, SK_ZERO);
+            skScanner_skip(scanner, 2, SK_DIGIT, SK_ZERO);
         }
 
         /// If fraction is invalid, goto error
@@ -402,9 +454,7 @@ Sk_parse_json_number(Sk_Scanner* scanner)
     }
 
     /// Let's check if there is exponent
-    token = Sk_Scanner_peek(scanner);
-
-    if(token.type == SK_EXP) {
+    if(skScanner_peek(scanner).type == SK_EXP) {
         /// If there is no fractional part, then we can't have
         /// exponent part, goto error
         if(!fraction) {
@@ -412,15 +462,19 @@ Sk_parse_json_number(Sk_Scanner* scanner)
         }
 
         /// Check if exponent has a sign
-        if((token = Sk_Scanner_next(scanner)).type != SK_HYPHEN && token.type != SK_PLUS) {
+        if((token = skScanner_next(scanner)).type != SK_HYPHEN
+           && token.type != SK_PLUS)
+        {
             /// If exponent doesn't have a sign it is invalid, goto error
             goto jmp_err;
         }
 
         /// Exponent must contain digits/zero-es in order to be valid
-        if((token = Sk_Scanner_next(scanner)).type == SK_DIGIT || token.type == SK_ZERO) {
+        if((token = skScanner_next(scanner)).type == SK_DIGIT
+           || token.type == SK_ZERO)
+        {
             /// Exponent is valid, skip the rest of the digits/zeroes
-            Sk_Scanner_skip(scanner, 2, SK_DIGIT, SK_ZERO);
+            skScanner_skip(scanner, 2, SK_DIGIT, SK_ZERO);
         } else {
             /// Exponent is invalid, it contains no digits, goto error
             goto jmp_err;
@@ -428,9 +482,10 @@ Sk_parse_json_number(Sk_Scanner* scanner)
     }
 
     /// Set the end of the token stream
-    char*         end = Sk_CharIter_next_address(&scanner->iter);
+    char* end = skCharIter_next_address(&scanner->iter) - 1;
+    printf("End char -> %c\n", *end);
     /// Convert the stream into number (double)
-    Sk_JsonDouble number = strtod(start, &end);
+    skJsonDouble number = strtod(start, &end);
 
     /// If during conversion overflow occured, warn the user
     /// TODO: More direct error propagation to user
@@ -440,23 +495,23 @@ Sk_parse_json_number(Sk_Scanner* scanner)
 
     /// If we have a fractional part, return double
     if(fraction) {
-        return Sk_JsonDoubleNode_new(number);
+        return skJsonDouble_new(number, parent);
     }
     /// Otherwise return integer (cast it back to int)
     else
     {
-        return Sk_JsonIntegerNode_new((Sk_JsonInteger) number);
+        return skJsonInteger_new((skJsonInteger) number, parent);
     }
 
 jmp_err:
     /// Skip entire json object/array to continue parsing rest of the file
-    Sk_CharIter_depth_above(&scanner->iter);
+    skCharIter_depth_above(&scanner->iter);
     /// Finally return the error node
-    return Sk_JsonErrorNode_new("failed to parse Json Number");
+    return skJsonErrorNode_new("failed to parse Json Number", parent);
 }
 
 void
-print_node(Sk_JsonNode* node)
+print_node(skJsonNode* node)
 {
     switch(node->type) {
         case SK_ERROR_NODE:
@@ -489,24 +544,26 @@ print_node(Sk_JsonNode* node)
     }
 }
 
-Sk_JsonNode*
-Sk_parse_json_bool(Sk_Scanner* scanner)
+skJsonNode*
+skparse_json_bool(skScanner* scanner, skJsonNode* parent)
 {
     /// Fetch the bool token
-    Sk_Token token = Sk_Scanner_peek(scanner);
+    skToken token = skScanner_peek(scanner);
 
     if(token.type == SK_TRUE) {
+        skScanner_next(scanner);
         /// token is SK_TRUE, create True BoolNode
-        return Sk_JsonBoolNode_new(true);
+        return skJsonBool_new(true, parent);
     } else {
+        skScanner_next(scanner);
         /// token is SK_FALSE, create False BoolNode
-        return Sk_JsonBoolNode_new(false);
+        return skJsonBool_new(false, parent);
     }
 }
 
-inline Sk_JsonNode*
-Sk_parse_json_null()
+skJsonNode*
+skparse_json_null(skScanner* scanner, skJsonNode* parent)
 {
-    /// Just construct Json Null node
-    return Sk_JsonNullNode_new();
+    skScanner_next(scanner);
+    return skJsonNull_new(parent);
 }

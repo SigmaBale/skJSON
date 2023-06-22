@@ -1,46 +1,49 @@
-#include "slice.h"
+#include "skslice.h"
 #include <fcntl.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <unistd.h>
 
-typedef struct {
+struct _skState {
     size_t depth;
     size_t col;
     size_t ln;
     bool   in_jstring;
-} skState;
+};
 
-static skState JsonState = {
+/// TODO: Make JsonState part of the skJson struct
+/// Must avoid having global, what if we have multiple json
+/// parsed files in a single proccess?
+skState JsonState = {
     .ln         = 1,
     .col        = 1,
     .depth      = 1,
     .in_jstring = false,
 };
 
-Sk_StrSlice
-Sk_Slice_new(char* ptr, size_t len)
+skStrSlice
+skSlice_new(char* ptr, size_t len)
 {
-    return (Sk_StrSlice) {
+    return (skStrSlice) {
         .ptr = ptr,
         .len = len,
     };
 }
 
 char*
-Sk_Slice_start(const Sk_StrSlice* slice)
+skSlice_start(const skStrSlice* slice)
 {
     return (slice == NULL) ? NULL : slice->ptr;
 }
 
 char*
-Sk_Slice_end(const Sk_StrSlice* slice)
+skSlice_end(const skStrSlice* slice)
 {
     return (slice == NULL) ? NULL : slice->ptr + slice->len;
 }
 
 char*
-Sk_Slice_index(const Sk_StrSlice* slice, size_t index)
+skSlice_index(const skStrSlice* slice, size_t index)
 {
     if(slice == NULL) {
         return NULL;
@@ -56,28 +59,28 @@ Sk_Slice_index(const Sk_StrSlice* slice, size_t index)
 }
 
 int_least64_t
-Sk_Slice_len(const Sk_StrSlice* slice)
+skSlice_len(const skStrSlice* slice)
 {
     return (slice == NULL) ? -1 : (int_least64_t) slice->len;
 }
 
-Sk_CharIter
-Sk_CharIter_new(const char* ptr, size_t len)
+skCharIter
+skCharIter_new(const char* ptr, size_t len)
 {
-    return (Sk_CharIter) {
+    return (skCharIter) {
         .next = (char*) ptr,
         .end  = (char*) ptr + len,
     };
 }
 
-Sk_CharIter
-Sk_CharIter_from_slice(Sk_StrSlice* slice)
+skCharIter
+skCharIter_from_slice(skStrSlice* slice)
 {
-    return (Sk_CharIter) { .next = Sk_Slice_start(slice), .end = Sk_Slice_end(slice) };
+    return (skCharIter) { .next = skSlice_start(slice), .end = skSlice_end(slice) };
 }
 
 char*
-Sk_CharIter_next_address(const Sk_CharIter* iterator)
+skCharIter_next_address(const skCharIter* iterator)
 {
     if(iterator == NULL || iterator->next == NULL) {
         return NULL;
@@ -87,7 +90,7 @@ Sk_CharIter_next_address(const Sk_CharIter* iterator)
 }
 
 void
-Sk_State_handle(char c)
+skState_handle(char c)
 {
     switch(c) {
         case '\n':
@@ -123,7 +126,7 @@ Sk_State_handle(char c)
 }
 
 int
-Sk_CharIter_next(Sk_CharIter* iterator)
+skCharIter_next(skCharIter* iterator)
 {
     if(iterator == NULL || iterator->next == NULL) {
         return EOF;
@@ -137,22 +140,22 @@ Sk_CharIter_next(Sk_CharIter* iterator)
         iterator->next++;
     }
 
-    Sk_State_handle(temp);
+    skState_handle(temp);
 
     return temp;
 }
 
 int
-Sk_CharIter_advance(Sk_CharIter* iterator, size_t amount)
+skCharIter_advance(skCharIter* iterator, size_t amount)
 {
     if(iterator == NULL || iterator->next == NULL) {
         return EOF;
     }
 
-    int c = Sk_CharIter_peek(iterator);
+    int c = skCharIter_peek(iterator);
 
     while(amount--) {
-        if((c = Sk_CharIter_next(iterator)) == EOF) {
+        if((c = skCharIter_next(iterator)) == EOF) {
             break;
         }
     }
@@ -161,21 +164,21 @@ Sk_CharIter_advance(Sk_CharIter* iterator, size_t amount)
 }
 
 void
-Sk_CharIter_depth_above(Sk_CharIter* iterator)
+skCharIter_depth_above(skCharIter* iterator)
 {
     if(JsonState.depth < 2) {
-        Sk_CharIter_drain(iterator);
+        skCharIter_drain(iterator);
     } else {
         size_t target_depth = JsonState.depth - 1;
 
         while(JsonState.depth != target_depth) {
-            Sk_CharIter_next(iterator);
+            skCharIter_next(iterator);
         }
     }
 }
 
 void
-Sk_CharIter_drain(Sk_CharIter* iterator)
+skCharIter_drain(skCharIter* iterator)
 {
     if(iterator != NULL) {
         iterator->next = NULL;
@@ -183,7 +186,7 @@ Sk_CharIter_drain(Sk_CharIter* iterator)
 }
 
 int
-Sk_CharIter_peek(const Sk_CharIter* iterator)
+skCharIter_peek(const skCharIter* iterator)
 {
     if(iterator == NULL || iterator->next == NULL) {
         return EOF;

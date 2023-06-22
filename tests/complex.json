@@ -1,0 +1,9 @@
+{
+    "arr" : [
+        "one", "two", 3, 4.0e+1, true, false, null
+    ],
+    "obj" : {
+        "one" : 1, "two" : 2, "three":3, "complex":true, "simple":false
+    },
+    "end":null
+}
