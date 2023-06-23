@@ -15,7 +15,7 @@
 #define null_check(object) \
     if((object) == NULL) return NULL
 
-skJsonString skJsonString_new(skToken token);
+skJsonString skJsonString_new_internal(skToken token);
 skJsonNode*  skparse_json_object(skScanner* scanner, skJsonNode* parent);
 skJsonNode*  skparse_json_array(skScanner* scanner, skJsonNode* parent);
 skJsonNode*  skparse_json_string(skScanner* scanner, skJsonNode* parent);
@@ -75,6 +75,7 @@ skJsonNode_new(skScanner* scanner, skJsonNode* parent)
         case SK_LBRACK:
             return skparse_json_array(scanner, parent);
         case SK_STRING:
+            printf("Trying to parse json string\n");
             return skparse_json_string(scanner, parent);
         case SK_HYPHEN:
         case SK_ZERO:
@@ -87,8 +88,9 @@ skJsonNode_new(skScanner* scanner, skJsonNode* parent)
             return skparse_json_null(scanner, parent);
         case SK_INVALID:
         default:
-            return skJsonErrorNode_new("Invalid syntax/token while parsing",
-                                       parent);
+            return skJsonError_new(
+                "Invalid syntax/token while parsing",
+                parent);
     }
 }
 
@@ -100,8 +102,8 @@ skparse_json_object(skScanner* scanner, skJsonNode* parent)
     bool start = true;
 
     /// Current member we are parsing (key/value pair)
-    skJsonString key   = NULL;
-    skJsonNode*  value = NULL;
+    skJsonNode* key   = NULL;
+    skJsonNode* value = NULL;
 
     /// Json Object
     skJsonNode* object_node = skJsonObject_new(parent);
@@ -129,7 +131,7 @@ skparse_json_object(skScanner* scanner, skJsonNode* parent)
         }
 
         if(token.type == SK_STRING) {
-            key = skJsonString_new(token);
+            key = skparse_json_string(scanner, object_node);
             null_check(key);
 
             /// Skip whitespaces
@@ -146,7 +148,8 @@ skparse_json_object(skScanner* scanner, skJsonNode* parent)
             skScanner_skip(scanner, 1, SK_WS);
 
             /// Fetch value (enter recursion)
-            value = skJsonNode_new(scanner, parent);
+            /// TODO: Abstract key and value into a single pair struct
+            value = skJsonNode_new(scanner, object_node);
             null_check(value);
 
             if(value->type == SK_ERROR_NODE) {
@@ -176,7 +179,7 @@ skparse_json_object(skScanner* scanner, skJsonNode* parent)
         skHashTable_drop(table);
 
         /// Return error
-        return skJsonErrorNode_new("failed parsing json object", parent);
+        return skJsonError_new("failed parsing json object", parent);
     }
 
     /// Return valid Json Object.
@@ -218,7 +221,7 @@ skparse_json_array(skScanner* scanner, skJsonNode* parent)
             start = false;
         }
 
-        temp = skJsonNode_new(scanner, parent);
+        temp = skJsonNode_new(scanner, array_node);
 
         /// If node parsing errored set err
         if(temp->type == SK_ERROR_NODE) {
@@ -243,7 +246,7 @@ skparse_json_array(skScanner* scanner, skJsonNode* parent)
         skCharIter_depth_above(&scanner->iter);
 
         /// Return error
-        return skJsonErrorNode_new("failed parsing json array", parent);
+        return skJsonError_new("failed parsing json array", parent);
     }
 
     /// Return valid Json Array
@@ -253,7 +256,7 @@ skparse_json_array(skScanner* scanner, skJsonNode* parent)
 /// Checks the validity of a string and allocates
 /// storage for it if the json string is valid
 skJsonString
-skJsonString_new(skToken token)
+skJsonString_new_internal(skToken token)
 {
     /// Number of hexadecimal code points for UTF-16 encoding
     static const unsigned char UNIC_HEX_UTF16_CODES = 4;
@@ -343,11 +346,11 @@ skparse_json_string(skScanner* scanner, skJsonNode* parent)
     skToken_print(token);
     printf("\n");
     /// Parse the Json String
-    if((jstring = skJsonString_new(token)) == NULL) {
+    if((jstring = skJsonString_new_internal(token)) == NULL) {
         printf("Failed parsing jstring\n");
         skCharIter_depth_above(&scanner->iter);
         /// Parsing failed, return error
-        return skJsonErrorNode_new("failed to parse Json String", parent);
+        return skJsonError_new("failed to parse Json String", parent);
     }
 
     skScanner_next(scanner);
@@ -355,7 +358,7 @@ skparse_json_string(skScanner* scanner, skJsonNode* parent)
     skToken_print(skScanner_peek(scanner));
 
     /// Return valid Json String (null terminated)
-    return skJsonStringNode_new(jstring, parent);
+    return skJsonString_new(jstring, parent);
 }
 
 skJsonNode*
@@ -507,12 +510,16 @@ jmp_err:
     /// Skip entire json object/array to continue parsing rest of the file
     skCharIter_depth_above(&scanner->iter);
     /// Finally return the error node
-    return skJsonErrorNode_new("failed to parse Json Number", parent);
+    return skJsonError_new("failed to parse Json Number", parent);
 }
 
 void
 print_node(skJsonNode* node)
 {
+    if(node == NULL) {
+        printf("NO PARENT\n");
+        return;
+    }
     switch(node->type) {
         case SK_ERROR_NODE:
             printf("ERROR NODE\n");

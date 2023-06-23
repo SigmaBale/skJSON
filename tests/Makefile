@@ -11,7 +11,7 @@ DEPFILES := $(patsubst %.o,%.d,$(OBJECTS))
 
 CC = gcc
 DEPFLAGS = -MD -MP
-SANITIZER_FLAGS = -fsanitize=address -O1 -fno-omit-frame-pointer
+SANITIZER_FLAGS = -fsanitize=address -O0 -fno-omit-frame-pointer
 CFLAGS = -Werror -Wall -Wextra -Wpedantic -std=c99 $(DEPFLAGS)
 
 all: $(BUILD_DIR)/$(BIN)

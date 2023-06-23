@@ -1,7 +1,7 @@
 // clang-format off
 #include <criterion/criterion.h>
 #include <criterion/internal/assert.h>
-#include "../src/parser.h"
+#include "../src/skparser.h"
 #include <fcntl.h>
 #include <unistd.h>
 // clang-format on
@@ -285,9 +285,10 @@ json_setup_complex(void)
     scanner = skScanner_new(buf, n);
 }
 
-TestSuite(SkJsonComplexTypes,
-          .init = json_setup_complex,
-          .fini = json_teardown);
+TestSuite(
+    SkJsonComplexTypes,
+    .init = json_setup_complex,
+    .fini = json_teardown);
 
 Test(SkJsonComplexTypes, ParseObjects)
 {
@@ -308,14 +309,36 @@ Test(SkJsonComplexTypes, ParseObjects)
     cr_assert(arr_node != NULL);
     cr_assert(arr_node->type == SK_ARRAY_NODE);
     cr_assert(arr_node->data.j_array->len == 7);
-    skVec* nodes = arr_node->data.j_array;
-    cr_assert(((skJsonNode*) skVec_index(nodes, 0))->type == SK_STRING_NODE);
-    cr_assert(((skJsonNode*) skVec_index(nodes, 1))->type == SK_STRING_NODE);
-    cr_assert(((skJsonNode*) skVec_index(nodes, 2))->type == SK_INT_NODE);
-    cr_assert(((skJsonNode*) skVec_index(nodes, 3))->type == SK_DOUBLE_NODE);
-    cr_assert(((skJsonNode*) skVec_index(nodes, 4))->type == SK_BOOL_NODE);
-    cr_assert(((skJsonNode*) skVec_index(nodes, 5))->type == SK_BOOL_NODE);
-    cr_assert(((skJsonNode*) skVec_index(nodes, 6))->type == SK_NULL_NODE);
+    skVec*      nodes = arr_node->data.j_array;
+    skJsonNode* temp;
+    cr_assert(
+        (temp = ((skJsonNode*) skVec_index(nodes, 0)))->type == SK_STRING_NODE);
+    printf("String node ok, its parent -> ");
+    print_node(temp->parent);
+    cr_assert(
+        (temp = ((skJsonNode*) skVec_index(nodes, 1)))->type == SK_STRING_NODE);
+    printf("String node ok, its parent -> ");
+    print_node(temp->parent);
+    cr_assert(
+        (temp = ((skJsonNode*) skVec_index(nodes, 2)))->type == SK_INT_NODE);
+    printf("Integer node ok, its parent -> ");
+    print_node(temp->parent);
+    cr_assert(
+        (temp = ((skJsonNode*) skVec_index(nodes, 3)))->type == SK_DOUBLE_NODE);
+    printf("Double node ok, its parent -> ");
+    print_node(temp->parent);
+    cr_assert(
+        (temp = ((skJsonNode*) skVec_index(nodes, 4)))->type == SK_BOOL_NODE);
+    printf("bool node ok, its parent -> ");
+    print_node(temp->parent);
+    cr_assert(
+        (temp = ((skJsonNode*) skVec_index(nodes, 5)))->type == SK_BOOL_NODE);
+    printf("bool node ok, its parent -> ");
+    print_node(temp->parent);
+    cr_assert(
+        (temp = ((skJsonNode*) skVec_index(nodes, 6)))->type == SK_NULL_NODE);
+    printf("null node ok, its parent -> ");
+    print_node(temp->parent);
     printf("All passed, now fix drop\n");
     skJsonNode_drop(arr_node);
 }

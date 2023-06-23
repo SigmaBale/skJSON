@@ -116,8 +116,8 @@ typedef struct {
 skJsonNode *skJsonObject_new(skJsonNode *parent);
 skJsonNode *skJsonArray_new(skJsonNode *parent);
 skJsonNode *skJsonNode_new(skScanner *scanner, skJsonNode *parent);
-skJsonNode *skJsonErrorNode_new(skJsonError msg, skJsonNode *parent);
-skJsonNode *skJsonStringNode_new(skJsonString str, skJsonNode *parent);
+skJsonNode *skJsonError_new(skJsonError msg, skJsonNode *parent);
+skJsonNode *skJsonString_new(skJsonString str, skJsonNode *parent);
 skJsonNode *skJsonInteger_new(skJsonInteger number, skJsonNode *parent);
 skJsonNode *skJsonDouble_new(skJsonDouble number, skJsonNode *parent);
 skJsonNode *skJsonBool_new(skJsonBool boolean, skJsonNode *parent);

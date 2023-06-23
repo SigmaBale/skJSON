@@ -6,14 +6,16 @@
 
 typedef size_t (*HashFunction)(const void *);
 
+typedef int (*CmpKeyFn)(const void *, const void *);
+
 typedef void (*FreeKeyFn)(void *);
 
 typedef void (*FreeValueFn)(void *);
 
 typedef struct skHashTable skHashTable;
 
-skHashTable *skHashTable_new(HashFunction hash_fn, FreeKeyFn free_key,
-                             FreeValueFn free_val);
+skHashTable *skHashTable_new(HashFunction hash_fn, CmpKeyFn cmp_key,
+                             FreeKeyFn free_key, FreeValueFn free_val);
 
 bool skHashTable_insert(skHashTable *table, void *key, void *value);
 

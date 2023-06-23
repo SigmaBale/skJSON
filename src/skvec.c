@@ -1,5 +1,6 @@
 // clang-format off
 #include <limits.h>
+#include <assert.h>
 #include <stdbool.h>
 #include <memory.h>
 #include <stdlib.h>
@@ -150,8 +151,8 @@ skVec_insert(skVec* vec, void* element, size_t index)
             return false;
         }
     } else {
-        void*  hole   = _skVec_get(vec, index + 1);
-        size_t elsize = vec->ele_size;
+        unsigned char* hole   = _skVec_get(vec, index + 1);
+        size_t         elsize = vec->ele_size;
 
         memmove(hole, hole - elsize, (vec->len - index) * elsize);
         memcpy(_skVec_get(vec, index), element, elsize);
@@ -167,7 +168,7 @@ skVec_remove(skVec* vec, size_t index, FreeFn free_fn)
     null_check_with_ret(vec, false);
     check_with_err_and_ret(index >= vec->len, PRINT_IDX_OOB, false);
 
-    void* hole = _skVec_get(vec, index);
+    unsigned char* hole = _skVec_get(vec, index);
 
     if(free_fn) {
         free_fn(hole);
@@ -184,7 +185,10 @@ _skVec_drop_elements(skVec* vec, FreeFn free_fn)
 {
     void* current;
     while((current = skVec_pop(vec)) != NULL) {
+        printf("Dropping -> ");
+        print_node(current);
         free_fn(current);
+        printf("Dropped successfully\n");
     }
 }
 
@@ -194,14 +198,21 @@ skVec_drop(skVec* vec, FreeFn free_fn)
     if(vec != NULL) {
         if(vec->allocation != NULL) {
             if(free_fn) {
+                printf("Dropping Array values\n");
                 _skVec_drop_elements(vec, free_fn);
+                printf("All Array values are dropped\n");
+#ifdef SK_DBUG
+                assert(vec->len == 0);
+#endif
             }
             free(vec->allocation);
+            printf("Json Array allocation deallocated!\n");
         }
         vec->allocation = NULL;
         vec->capacity   = 0;
         vec->len        = 0;
         vec->ele_size   = 0;
         free(vec);
+        printf("Json Array destroyed\n");
     }
 }

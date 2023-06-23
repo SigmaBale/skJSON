@@ -10,7 +10,6 @@ typedef struct skJson skJson;
 
 skJson *sk_json_new(void *buff, size_t bufsize);
 
-skJsonString skJsonString_new(skToken token);
 skJsonNode *skparse_json_object(skScanner *scanner, skJsonNode *parent);
 skJsonNode *skparse_json_array(skScanner *scanner, skJsonNode *parent);
 skJsonNode *skparse_json_string(skScanner *scanner, skJsonNode *parent);
