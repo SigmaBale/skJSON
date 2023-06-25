@@ -22,7 +22,7 @@
 #define PRINT_OOM_ERR                                                          \
   fprintf(stderr, "error %s:%d: out of memory\n", __FILE__, __LINE__)
 
-#define is_null(object) (object) == NULL
+#define is_null(object) ((object) == NULL)
 
 #define null_check_with_ret(object, ret)                                       \
   if ((object) == NULL) {                                                      \
@@ -65,7 +65,8 @@ typedef enum {
   SK_INT_NODE = 4,
   SK_DOUBLE_NODE = 5,
   SK_BOOL_NODE = 6,
-  SK_NULL_NODE = 7
+  SK_NULL_NODE = 7,
+  SK_MEMBER_NODE = 8,
 } skNodeType;
 /**************************************/
 //
@@ -74,19 +75,21 @@ typedef enum {
 /************** Union *****************/
 typedef union skNodeData skNodeData;
 /********** Union types ***************/
+typedef struct skJsonMember skJsonMember;
 typedef const char *skJsonError;
 typedef int64_t skJsonInteger;
 typedef char *skJsonString;
 typedef double skJsonDouble;
 typedef bool skJsonBool;
 union skNodeData {
-  skJsonError j_err;
   skHashTable *j_object;
   skVec *j_array;
+  skJsonMember *j_member;
   skJsonString j_string;
   skJsonInteger j_int;
   skJsonDouble j_double;
   skJsonBool j_boolean;
+  skJsonError j_err;
 };
 /**************************************/
 //
@@ -98,17 +101,17 @@ struct skJsonNode {
   skNodeType type;
   skNodeData data;
   skJsonNode *parent;
-  long int index;
+  size_t index;
 };
 /************************************/
 //
 //
 //
 /******** Json Object member ********/
-typedef struct {
-  skJsonString string;
+struct skJsonMember {
+  skJsonString key;
   skJsonNode *value;
-} skJsonMember;
+};
 /************************************/
 //
 //
@@ -122,8 +125,9 @@ skJsonNode *skJsonInteger_new(skJsonInteger number, skJsonNode *parent);
 skJsonNode *skJsonDouble_new(skJsonDouble number, skJsonNode *parent);
 skJsonNode *skJsonBool_new(skJsonBool boolean, skJsonNode *parent);
 skJsonNode *skJsonNull_new(skJsonNode *parent);
+skJsonNode *skJsonMember_new(skJsonString key, skJsonNode *value, skJsonNode* parent);
 
-void skJsonMember_drop(skJsonMember *member);
+void skJsonMember_drop(skJsonNode *member);
 void skJsonNode_drop(skJsonNode *);
 
 void print_node(skJsonNode *node);

@@ -1,14 +1,12 @@
 #ifndef __SK_SLICE_H__
 #define __SK_SLICE_H__
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
 
-/// TODO: Implement proper API
-typedef struct _skState skState;
-
 /**
- * 'StrSlice' is a contigious sequence of bytes.
+ * 'skStrSlice' is a contigious sequence of bytes.
  */
 typedef struct {
   char *ptr;
@@ -16,7 +14,7 @@ typedef struct {
 } skStrSlice;
 
 /**
- * 'StrSlice' constructor, PTR denotes the start of sequence,
+ * 'skStrSlice' constructor, PTR denotes the start of sequence,
  * LEN is the number of elements in the sequence.
  */
 skStrSlice skSlice_new(char *ptr, size_t len);
@@ -46,11 +44,25 @@ char *skSlice_index(const skStrSlice *slice, size_t index);
 long int skSlice_len(const skStrSlice *slice);
 
 /**
+ * Struct containing debug information in case error occurs during
+ * parsing, it is part of the 'skCharIter' because that is our
+ * Json byte iterator.
+ */
+typedef struct _skJsonState {
+  size_t depth;
+  size_t col;
+  size_t ln;
+  bool in_jstring;
+} skJsonState;
+
+/**
  * Iterator over char's (bytes).
+ * Holds 'skJsonState' and updates it on every call to 'skCharIter_next'.
  */
 typedef struct {
   char *next;
   char *end;
+  skJsonState state;
 } skCharIter;
 
 /**
@@ -60,7 +72,7 @@ typedef struct {
 skCharIter skCharIter_new(const char *ptr, size_t len);
 
 /**
- * Constructs the 'CharIterator' from the 'StrSlice'.
+ * Constructs the 'CharIterator' from the 'skStrSlice'.
  * Returns NULL if SLICE is NULL.
  */
 skCharIter skCharIter_from_slice(skStrSlice *slice);

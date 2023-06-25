@@ -9,8 +9,10 @@
 #include "skvec.h"
 // clang-format on
 
+#define has_key_destructor(table) (table) != NULL && (table)->free_key != NULL
+#define has_val_destructor(table) (table) != NULL && (table)->free_val != NULL
+
 /// Internal only -------------------------------------------------------///
-/// HashTable
 static const unsigned int PRIMES[] = {
     101,   199,   443,    881,    1759,   3517,   7069,    14143,
     28307, 56599, 113453, 228841, 465799, 982351, 1941601,
@@ -25,63 +27,31 @@ static long unsigned int _skHash_str(const char* str);
 static double            _skHashTable_load_factor(const skHashTable* table);
 static bool              _skHashTable_expand(skHashTable* table);
 
-/// HashCell
-static skHashCell* _skHashCell_new(
-    void*       key,
-    void*       value,
-    FreeKeyFn   free_key,
-    FreeValueFn free_val);
-static void _skHashCell_drop(skHashCell* cell);
+static void _skHashCell_reset(skHashTable* table, skHashCell* cell);
 
 ///---------------------------------------------------------------------///
 
 struct _skHashCell {
-    void*       key;
-    void*       value;
-    bool        taken;
+    void* key;
+    void* value;
+    bool  taken;
+};
+
+struct skHashTable {
+    skVec*      storage;
+    size_t      len;
+    HashFn      hash_fn;
+    CmpKeyFn    cmp_key;
     FreeKeyFn   free_key;
     FreeValueFn free_val;
 };
 
-struct skHashTable {
-    skVec*       storage;
-    size_t       len;
-    HashFunction hash_fn;
-    CmpKeyFn     cmp_key;
-    FreeKeyFn    free_key;
-    FreeValueFn  free_val;
-};
-
-static skHashCell*
-_skHashCell_new(
-    void*       key,
-    void*       value,
-    FreeKeyFn   free_key,
-    FreeValueFn free_val)
-{
-    null_check_with_err_and_ret(key, INVALID_KEY, NULL);
-
-    skHashCell* cell = malloc(sizeof(skHashCell));
-
-    if(__glibc_unlikely(is_null(cell))) {
-        PRINT_OOM_ERR;
-        return NULL;
-    }
-
-    cell->key      = key;
-    cell->value    = value;
-    cell->free_key = free_key;
-    cell->free_val = free_val;
-
-    return cell;
-}
-
 skHashTable*
 skHashTable_new(
-    HashFunction hash_fn,
-    CmpKeyFn     cmp_key,
-    FreeKeyFn    free_key,
-    FreeValueFn  free_val)
+    HashFn      hash_fn,
+    CmpKeyFn    cmp_key,
+    FreeKeyFn   free_key,
+    FreeValueFn free_val)
 {
     null_check_with_ret(cmp_key, NULL);
 
@@ -91,7 +61,7 @@ skHashTable_new(
         return NULL;
     }
 
-    skVec* storage = skVec_new(sizeof(skHashCell*));
+    skVec* storage = skVec_new(sizeof(skHashCell));
 
     if(__glibc_unlikely(is_null(storage))) {
         free(table);
@@ -106,7 +76,7 @@ skHashTable_new(
     table->len      = 0;
 
     if(is_null(hash_fn)) {
-        table->hash_fn = (HashFunction) _skHash_str;
+        table->hash_fn = (HashFn) _skHash_str;
     } else {
         table->hash_fn = hash_fn;
     }
@@ -139,7 +109,6 @@ _skHash_str(const char* str)
 
 /// Expands the HashTable, if it fails the allocation it will
 /// print the err to stderr and return false.
-///
 static bool
 _skHashTable_expand(skHashTable* table)
 {
@@ -161,6 +130,7 @@ _skHashTable_expand(skHashTable* table)
             }
 
             new_storage->capacity = prime;
+            break;
         }
     }
 
@@ -170,32 +140,33 @@ _skHashTable_expand(skHashTable* table)
         return false;
     }
 
-    /// Swap table storage
+    /// Swap table storage (array)
     skVec* old_storage = table->storage;
     table->storage     = new_storage;
 
-    void*       old_allocation = old_storage->allocation;
-    skHashCell* current        = NULL;
+    unsigned char* old_allocation = old_storage->allocation;
+    skHashCell*    current        = NULL;
+
     /// Re-hash all the keys
     while(old_cap--) {
-        if((current = old_allocation)->taken) {
-            /// No need to check for this, we already allocated the new table,
-            /// so we guarrantee it won't try to expand, meaning this can't
-            /// error (aka return false). But we check for the return value
-            /// anyways cuz ligma
-            if(__glibc_unlikely(
-                   !skHashTable_insert(table, current->key, current->value)))
-            {
-                free(old_allocation);
-                return false;
+        if((current = (skHashCell*) old_allocation)->taken) {
+#ifdef sk_dbug
+            if(!skHashTable_insert(table, current->key, current->value)) {
+                assert(false);
             }
+#else
+            skHashTable_insert(table, current->key, current->value);
+#endif
         }
-        old_allocation = (unsigned char*) old_allocation + ele_size;
+        old_allocation += ele_size;
     }
+
 #ifdef SK_DBUG
     assert(old_storage->len == table->storage->len);
 #endif
-    free(old_allocation);
+
+    /// Drop the boomer
+    skVec_drop(old_storage, NULL);
     return true;
 }
 
@@ -205,10 +176,10 @@ _skHashTable_probe(skHashTable* table, void* key, bool* found)
     *found                   = false;
     skVec*      cells        = table->storage;
     size_t      storage_size = table->storage->capacity;
-    size_t      index        = table->hash_fn(key) % cells->capacity;
+    size_t      index        = (table->hash_fn(key)) % storage_size;
     skHashCell* cell         = skVec_index_unsafe(cells, index);
 
-    for(int i = 1; (!*found && cell && !cell->taken); i++) {
+    for(int i = 1; (!(*found) && cell->taken); i++) {
         if(table->cmp_key(cell->key, key) == 0) {
             *found = true;
         } else {
@@ -224,9 +195,9 @@ _skHashTable_probe(skHashTable* table, void* key, bool* found)
 void*
 skHashTable_get(skHashTable* table, void* key)
 {
-    check_with_ret(table == NULL || key == NULL, NULL);
-    bool        found;
-    skHashCell* cell = _skHashTable_probe(table, key, &found);
+    check_with_ret(is_null(table) || is_null(key), NULL);
+    bool        found = false;
+    skHashCell* cell  = _skHashTable_probe(table, key, &found);
     return (found) ? cell->value : NULL;
 }
 
@@ -237,8 +208,10 @@ skHashTable_insert(skHashTable* table, void* key, void* value)
 #ifdef SK_DBUG
     assert(table->len <= table->storage->capacity);
 #endif
-    /// Expand if we exceeded load factor
-    if(_skHashTable_load_factor(table) >= 0.5) {
+    /// Expand if we exceeded load factor or the capacity is 0
+    if(skVec_capacity(table->storage) == 0
+       || _skHashTable_load_factor(table) >= 0.5)
+    {
         check_with_ret(__glibc_unlikely(!_skHashTable_expand(table)), false);
     }
 
@@ -246,35 +219,53 @@ skHashTable_insert(skHashTable* table, void* key, void* value)
     bool        found = false;
     skHashCell* cell  = _skHashTable_probe(table, key, &found);
 
-    if(found) {
-        cell->value = value;
-        return found;
+    if(!found) {
+        cell->key   = key;
+        cell->taken = true;
+        table->len++;
+    } else if(has_val_destructor(table)) {
+        table->free_val(cell->value);
     }
 
-    skHashCell* temp
-        = _skHashCell_new(key, value, table->free_key, table->free_val);
+    cell->value = value;
 
-    if(__glibc_unlikely(is_null(temp))) {
-        return false;
-    }
-
-    cell = temp;
-    table->len++;
     return true;
 }
 
 bool
 skHashTable_remove(skHashTable* table, void* key)
 {
-    if(is_null(table) || is_null(table)) {
+    if(is_null(table) || is_null(key)) {
+        assert(false);
         return false;
     }
 
     skHashCell* cell = skHashTable_get(table, key);
     null_check_with_ret(cell, false);
 
-    _skHashCell_drop(cell);
+    _skHashCell_reset(table, cell);
     return true;
+}
+
+static void
+_skHashCell_reset(skHashTable* table, skHashCell* cell)
+{
+    if(has_key_destructor(table)) {
+        table->free_key(cell->key);
+    }
+    if(has_val_destructor(table)) {
+        table->free_val(cell->value);
+    }
+    cell->key   = NULL;
+    cell->value = NULL;
+    cell->taken = false;
+}
+
+size_t
+skHashTable_len(skHashTable* table)
+{
+    null_check_with_ret(table, 0);
+    return table->len;
 }
 
 bool
@@ -290,26 +281,16 @@ skHashTable_drop(skHashTable* table)
     if(is_null(table)) {
         return;
     }
+    size_t      size = table->storage->capacity;
+    skVec*      vec  = table->storage;
+    skHashCell* cell;
 
-    skVec_drop(table->storage, (FreeFn) _skHashCell_drop);
+    while(size--) {
+        if((cell = skVec_index_unsafe(vec, size))->taken) {
+            _skHashCell_reset(table, cell);
+        }
+    }
+
+    skVec_drop(table->storage, NULL);
     free(table);
-}
-
-static void
-_skHashCell_drop(skHashCell* cell)
-{
-    if(is_null(cell)) {
-        return;
-    }
-
-    if(cell->free_key) {
-        cell->free_key(cell->key);
-    }
-
-    if(cell->free_val) {
-        cell->free_val(cell->value);
-    }
-
-    cell->taken = false;
-    free(cell);
 }

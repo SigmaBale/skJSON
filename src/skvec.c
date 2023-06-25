@@ -43,7 +43,7 @@ _skVec_maybe_grow(skVec* vec)
 {
     if(vec->len == vec->capacity) {
         size_t amount;
-        size_t cap = (vec->capacity == 0) ? 1 : vec->capacity * 2;
+        size_t cap = (vec->capacity == 0) ? 10 : vec->capacity * 2;
 
         if(__glibc_unlikely((amount = cap * vec->ele_size) > INT_MAX)) {
             print_err_and_ret(PRINT_ALLOC_TOO_BIG, 1);
@@ -62,7 +62,7 @@ _skVec_maybe_grow(skVec* vec)
 void*
 _skVec_get(skVec* vec, size_t index)
 {
-    return &vec->allocation[index * vec->ele_size];
+    return (vec->allocation + (index * vec->ele_size));
 }
 
 void*
@@ -105,10 +105,8 @@ skVec_push(skVec* vec, void* element)
 {
     null_check_with_ret(vec, false);
     check_with_ret(__glibc_unlikely(_skVec_maybe_grow(vec) == 1), false);
-
     memmove(_skVec_get(vec, vec->len), element, vec->ele_size);
     vec->len++;
-
     return true;
 }
 
@@ -128,11 +126,18 @@ skVec_pop(skVec* vec)
     return _skVec_get(vec, --vec->len);
 }
 
-int
+size_t
 skVec_len(skVec* vec)
 {
-    null_check_with_ret(vec, -1);
-    return (int_least64_t) vec->len;
+    null_check_with_ret(vec, 0);
+    return vec->len;
+}
+
+size_t
+skVec_capacity(skVec* vec)
+{
+    null_check_with_ret(vec, 0);
+    return vec->capacity;
 }
 
 bool
@@ -176,43 +181,40 @@ skVec_remove(skVec* vec, size_t index, FreeFn free_fn)
 
     size_t elsize = vec->ele_size;
     memmove(hole, hole + elsize, (--vec->len - index) * elsize);
-
     return true;
 }
 
 static void
 _skVec_drop_elements(skVec* vec, FreeFn free_fn)
 {
-    void* current;
-    while((current = skVec_pop(vec)) != NULL) {
-        printf("Dropping -> ");
-        print_node(current);
-        free_fn(current);
-        printf("Dropped successfully\n");
+    size_t size = vec->len;
+    while(size--) {
+        free_fn(skVec_index(vec, size));
+#ifdef SK_DBG
+        vec->len--;
+#endif
     }
 }
 
 void
 skVec_drop(skVec* vec, FreeFn free_fn)
 {
-    if(vec != NULL) {
-        if(vec->allocation != NULL) {
-            if(free_fn) {
-                printf("Dropping Array values\n");
-                _skVec_drop_elements(vec, free_fn);
-                printf("All Array values are dropped\n");
-#ifdef SK_DBUG
-                assert(vec->len == 0);
-#endif
-            }
-            free(vec->allocation);
-            printf("Json Array allocation deallocated!\n");
-        }
-        vec->allocation = NULL;
-        vec->capacity   = 0;
-        vec->len        = 0;
-        vec->ele_size   = 0;
-        free(vec);
-        printf("Json Array destroyed\n");
+    if(is_null(vec)) {
+        return;
     }
+
+    if(!is_null(vec->allocation)) {
+        if(!is_null(free_fn)) {
+            _skVec_drop_elements(vec, free_fn);
+#ifdef SK_DBUG
+            assert(vec->len == 0);
+#endif
+        }
+        free(vec->allocation);
+    }
+
+    vec->allocation = NULL;
+    vec->capacity   = 0;
+    vec->ele_size   = 0;
+    free(vec);
 }

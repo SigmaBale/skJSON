@@ -25,7 +25,9 @@ bool skVec_push(skVec *vec, void *element);
 
 void *skVec_pop(skVec *vec);
 
-int skVec_len(skVec *vec);
+size_t skVec_len(skVec *vec);
+
+size_t skVec_capacity(skVec *vec);
 
 void skVec_drop(skVec *vec, FreeFn free_fn);
 

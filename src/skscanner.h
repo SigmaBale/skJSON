@@ -8,6 +8,7 @@
 #include <stdio.h>
 // clang-format on 
 
+
 typedef struct {
   skCharIter iter;
   skToken token;

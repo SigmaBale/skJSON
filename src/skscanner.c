@@ -11,6 +11,8 @@
 
 // clang-format on
 
+#define in_bounds(iter, bound) ((iter)->end >= (bound))
+
 skScanner*
 skScanner_new(void* buffer, size_t bufsize)
 {
@@ -19,11 +21,7 @@ skScanner_new(void* buffer, size_t bufsize)
     }
 
     skScanner* scanner = malloc(sizeof(skScanner));
-
-    if(scanner == NULL) {
-        PRINT_OOM_ERR;
-        return NULL;
-    }
+    null_check_with_err_and_ret(scanner, PRINT_OOM_ERR, NULL);
 
     scanner->iter  = skCharIter_new(buffer, bufsize - 1);
     scanner->token = (skToken) { 0 };
@@ -111,20 +109,20 @@ skScanner_set_string_token(skScanner* scanner)
     token->lexeme.ptr = skCharIter_next_address(iterator);
     token->lexeme.len = 0;
 
+    iterator->state.in_jstring = true;
     /// Advance iterator until we hit closing quotes
-    for(len = 0; (c = skCharIter_next(&scanner->iter)) != '"'; len++) {
+    for(len = 0; (c = skCharIter_next(iterator)) != '"'; len++) {
         if(c == EOF) {
             /// We reached end of file and string is invalid
             scanner->token.type = SK_INVALID;
             break;
         }
     }
+    iterator->state.in_jstring = false;
 
     /// String is properly enclosed
     token->lexeme.len = len;
 }
-
-#define in_bounds(iter, bound) (iter)->end >= (bound)
 
 static void
 skScanner_set_bool_or_null_token(skScanner* scanner, char ch)
@@ -167,8 +165,9 @@ skScanner_set_bool_or_null_token(skScanner* scanner, char ch)
             }
             break;
         default:
-            /// Unreachable
+#ifdef SK_DBUG
             assert(false);
+#endif
             break;
     }
 }
@@ -248,10 +247,11 @@ skToken_print(skToken token)
             break;
     }
 
-    printf("lexeme = %.*s, len = %lu\n",
-           (int) token.lexeme.len,
-           token.lexeme.ptr,
-           token.lexeme.len);
+    printf(
+        "lexeme = %.*s, len = %lu\n",
+        (int) token.lexeme.len,
+        token.lexeme.ptr,
+        token.lexeme.len);
 }
 
 skToken
@@ -276,10 +276,10 @@ skScanner_next(skScanner* scanner)
             break;
         case ' ':
         case '\t':
-            *token = skToken_new(SK_WS, NULL, 0);
+            *token = skToken_new(SK_WS, ch, 1);
             break;
         case '\n':
-            *token = skToken_new(SK_NL, NULL, 0);
+            *token = skToken_new(SK_NL, ch, 1);
             break;
         case '"':
             skScanner_set_string_token(scanner);
@@ -330,7 +330,7 @@ skScanner_next(skScanner* scanner)
             *token = skToken_new(SK_DIGIT, ch, 1);
             break;
         default:
-            *token = skToken_new(SK_INVALID, NULL, 0);
+            *token = skToken_new(SK_INVALID, ch, 1);
             break;
     }
 

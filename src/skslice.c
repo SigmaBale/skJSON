@@ -1,25 +1,6 @@
 #include "skslice.h"
-#include <fcntl.h>
 #include <stdbool.h>
 #include <stdint.h>
-#include <unistd.h>
-
-struct _skState {
-    size_t depth;
-    size_t col;
-    size_t ln;
-    bool   in_jstring;
-};
-
-/// TODO: Make JsonState part of the skJson struct
-/// Must avoid having global, what if we have multiple json
-/// parsed files in a single proccess?
-skState JsonState = {
-    .ln         = 1,
-    .col        = 1,
-    .depth      = 1,
-    .in_jstring = false,
-};
 
 skStrSlice
 skSlice_new(char* ptr, size_t len)
@@ -58,10 +39,10 @@ skSlice_index(const skStrSlice* slice, size_t index)
     return temp;
 }
 
-int_least64_t
+long int
 skSlice_len(const skStrSlice* slice)
 {
-    return (slice == NULL) ? -1 : (int_least64_t) slice->len;
+    return (slice == NULL) ? -1 : (long int) slice->len;
 }
 
 skCharIter
@@ -70,13 +51,16 @@ skCharIter_new(const char* ptr, size_t len)
     return (skCharIter) {
         .next = (char*) ptr,
         .end  = (char*) ptr + len,
+        .state
+        = (skJsonState) {.ln = 1, .col = 1, .depth = 1, .in_jstring = false},
     };
 }
 
 skCharIter
 skCharIter_from_slice(skStrSlice* slice)
 {
-    return (skCharIter) { .next = skSlice_start(slice), .end = skSlice_end(slice) };
+    return (skCharIter) { .next = skSlice_start(slice),
+                          .end  = skSlice_end(slice) };
 }
 
 char*
@@ -89,38 +73,45 @@ skCharIter_next_address(const skCharIter* iterator)
     return iterator->next;
 }
 
-void
-skState_handle(char c)
+static void
+skCharIter_update_state(skCharIter* iterator, char ch)
 {
-    switch(c) {
-        case '\n':
-            if(!JsonState.in_jstring) {
-                JsonState.col = 1;
-                JsonState.ln++;
-            } else {
-                JsonState.col++;
-            }
-            break;
+
+    switch(ch) {
         case '{':
-            JsonState.depth++;
-            JsonState.col++;
+            if(!iterator->state.in_jstring) {
+                iterator->state.depth++;
+            }
+            iterator->state.col++;
             break;
         case '}':
-            if(JsonState.depth > 1) {
-                JsonState.depth--;
+            if(!iterator->state.in_jstring) {
+                iterator->state.depth--;
             }
-            JsonState.col++;
+            iterator->state.col++;
             break;
         case '[':
-            JsonState.depth++;
-            JsonState.col++;
+            if(!iterator->state.in_jstring) {
+                iterator->state.depth++;
+            }
+            iterator->state.col++;
             break;
         case ']':
-            JsonState.depth--;
-            JsonState.col++;
+            if(!iterator->state.in_jstring) {
+                iterator->state.depth--;
+            }
+            iterator->state.col++;
+            break;
+        case '\n':
+            if(!iterator->state.in_jstring) {
+                iterator->state.ln++;
+                iterator->state.col = 1;
+            } else {
+                iterator->state.col++;
+            }
             break;
         default:
-            JsonState.col++;
+            iterator->state.col++;
             break;
     }
 }
@@ -140,8 +131,7 @@ skCharIter_next(skCharIter* iterator)
         iterator->next++;
     }
 
-    skState_handle(temp);
-
+    skCharIter_update_state(iterator, temp);
     return temp;
 }
 
@@ -166,12 +156,12 @@ skCharIter_advance(skCharIter* iterator, size_t amount)
 void
 skCharIter_depth_above(skCharIter* iterator)
 {
-    if(JsonState.depth < 2) {
+    if(iterator->state.depth < 2) {
         skCharIter_drain(iterator);
     } else {
-        size_t target_depth = JsonState.depth - 1;
+        size_t target_depth = iterator->state.depth - 1;
 
-        while(JsonState.depth != target_depth) {
+        while(iterator->state.depth != target_depth) {
             skCharIter_next(iterator);
         }
     }

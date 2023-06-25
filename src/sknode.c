@@ -2,6 +2,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <limits.h>
 #include <string.h>
 #include "sknode.h"
 
@@ -15,6 +16,7 @@ skJsonNode_default(skJsonNode* parent)
 
     node->parent = parent;
     node->data   = (skNodeData) { 0 };
+    node->index  = 0;
 
     return node;
 }
@@ -37,8 +39,6 @@ skJsonObject_new(skJsonNode* parent)
         NULL);
 
     object_node->type = SK_OBJECT_NODE;
-    printf("Created a Json Object with parent -> ");
-    print_node(parent);
     return object_node;
 }
 
@@ -52,8 +52,6 @@ skJsonArray_new(skJsonNode* parent)
     null_check_with_err_and_ret(array_node->data.j_array, PRINT_OOM_ERR, NULL);
 
     array_node->type = SK_ARRAY_NODE;
-    printf("Created a Json Array with parent -> ");
-    print_node(parent);
     return array_node;
 }
 
@@ -68,8 +66,6 @@ skJsonError_new(skJsonError msg, skJsonNode* parent)
     node->type       = SK_ERROR_NODE;
     node->data.j_err = msg;
 
-    printf("Created a Json Error with parent -> ");
-    print_node(parent);
     return node;
 }
 
@@ -82,8 +78,6 @@ skJsonString_new(skJsonString str, skJsonNode* parent)
     node->type = (strlen(str) == 0) ? SK_EMPTYSTRING_NODE : SK_STRING_NODE;
     node->data.j_string = str;
 
-    printf("Created a Json String with parent -> ");
-    print_node(parent);
     return node;
 }
 
@@ -96,8 +90,6 @@ skJsonInteger_new(skJsonInteger number, skJsonNode* parent)
     node->type       = SK_INT_NODE;
     node->data.j_int = number;
 
-    printf("Created a Json Integer with parent -> ");
-    print_node(parent);
     return node;
 }
 
@@ -110,8 +102,6 @@ skJsonDouble_new(skJsonDouble number, skJsonNode* parent)
     node->type          = SK_DOUBLE_NODE;
     node->data.j_double = number;
 
-    printf("Created a Json Double with parent -> ");
-    print_node(parent);
     return node;
 }
 
@@ -124,8 +114,6 @@ skJsonBool_new(skJsonBool boolean, skJsonNode* parent)
     node->type           = SK_BOOL_NODE;
     node->data.j_boolean = boolean;
 
-    printf("Created a Json Bool with parent -> ");
-    print_node(parent);
     return node;
 }
 
@@ -137,9 +125,6 @@ skJsonNull_new(skJsonNode* parent)
 
     node->type = SK_NULL_NODE;
 
-    assert(parent != NULL);
-    printf("Created a Json Null with parent -> ");
-    print_node(parent);
     return node;
 }
 
@@ -147,49 +132,28 @@ void
 skJsonNode_drop(skJsonNode* node)
 {
     if(node != NULL) {
-        print_node(node);
         switch(node->type) {
             case SK_OBJECT_NODE:
-                printf("Dropping Json Object\n");
                 skHashTable_drop(node->data.j_object);
                 break;
             case SK_ARRAY_NODE:
-                printf("Dropping Json Array\n");
                 skVec_drop(node->data.j_array, (FreeFn) skJsonNode_drop);
                 break;
             case SK_STRING_NODE:
-                printf("Dropping Json String: '%s'\n", node->data.j_string);
                 free(node->data.j_string);
-                printf("Json String destoryed\n");
                 break;
             default:
                 break;
         }
+    }
 
-        skJsonNode* parent;
-        if((parent = node->parent) != NULL) {
-            printf("Node -> ");
-            print_node(node);
-            printf("Parent -> ");
-            print_node(parent);
-            if(parent->type == SK_OBJECT_NODE) {
-                /// Node parent is Json Object, lets remove it from that object
-                printf("Removing value from Json Object\n");
-                skHashTable_remove(parent->data.j_object, node->data.j_string);
-            } else if(parent->type == SK_ARRAY_NODE) {
-                printf("Now removing it rom Json Array\n");
-                /// Node parent is Json Array, lets remove it from that array
-                skVec_remove(
-                    parent->data.j_array,
-                    node->index,
-                    (FreeFn) skJsonNode_drop);
-            }
-        } else {
-            printf("Node has no parents -> ");
-            print_node(node);
-            /// Node is root, we can free it directly
-            free(node);
-            printf("Node has been destroyed\n");
-        }
+    skJsonNode* parent = node->parent;
+    if(parent != NULL) {
+#ifdef SK_DBUG
+        assert(parent->type == SK_ARRAY_NODE);
+#endif
+        skVec_remove(parent->data.j_array, node->index, NULL);
+    } else {
+        free(node);
     }
 }
