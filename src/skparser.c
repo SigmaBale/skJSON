@@ -501,10 +501,6 @@ print_node(skJsonNode* node)
         case SK_NULL_NODE:
             printf("NULL NODE\n");
             break;
-        case SK_MEMBER_NODE:
-            printf("MEMBER NODE: key: %s, value: ", node->data.j_member->key);
-            print_node(node->data.j_member->value);
-            break;
     }
 }
 

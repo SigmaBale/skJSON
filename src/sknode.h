@@ -66,7 +66,6 @@ typedef enum {
   SK_DOUBLE_NODE = 5,
   SK_BOOL_NODE = 6,
   SK_NULL_NODE = 7,
-  SK_MEMBER_NODE = 8,
 } skNodeType;
 /**************************************/
 //
@@ -84,7 +83,6 @@ typedef bool skJsonBool;
 union skNodeData {
   skHashTable *j_object;
   skVec *j_array;
-  skJsonMember *j_member;
   skJsonString j_string;
   skJsonInteger j_int;
   skJsonDouble j_double;
@@ -107,15 +105,6 @@ struct skJsonNode {
 //
 //
 //
-/******** Json Object member ********/
-struct skJsonMember {
-  skJsonString key;
-  skJsonNode *value;
-};
-/************************************/
-//
-//
-//
 skJsonNode *skJsonObject_new(skJsonNode *parent);
 skJsonNode *skJsonArray_new(skJsonNode *parent);
 skJsonNode *skJsonNode_new(skScanner *scanner, skJsonNode *parent);
@@ -125,7 +114,6 @@ skJsonNode *skJsonInteger_new(skJsonInteger number, skJsonNode *parent);
 skJsonNode *skJsonDouble_new(skJsonDouble number, skJsonNode *parent);
 skJsonNode *skJsonBool_new(skJsonBool boolean, skJsonNode *parent);
 skJsonNode *skJsonNull_new(skJsonNode *parent);
-skJsonNode *skJsonMember_new(skJsonString key, skJsonNode *value, skJsonNode* parent);
 
 void skJsonMember_drop(skJsonNode *member);
 void skJsonNode_drop(skJsonNode *);
