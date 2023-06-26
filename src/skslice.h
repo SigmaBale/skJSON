@@ -1,7 +1,7 @@
 #ifndef __SK_SLICE_H__
 #define __SK_SLICE_H__
 
-#include <stdbool.h>
+#include "sktypes.h"
 #include <stddef.h>
 #include <stdio.h>
 

@@ -3,7 +3,6 @@
 
 #include "sknode.h"
 #include "skscanner.h"
-#include "sktoken.h"
 #include <stddef.h>
 
 typedef struct skJson skJson;

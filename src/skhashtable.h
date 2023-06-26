@@ -1,8 +1,8 @@
 #ifndef __SK_HASHTABLE_H__
 #define __SK_HASHTABLE_H__
 
-#include <stdbool.h>
 #include <stddef.h>
+#include "sktypes.h"
 
 typedef size_t (*HashFn)(const void *);
 
@@ -19,11 +19,11 @@ skHashTable *skHashTable_new(HashFn hash_fn, CmpKeyFn cmp_key,
 
 bool skHashTable_insert(skHashTable *table, void *key, void *value);
 
-void *skHashTable_get(skHashTable *table, void *key);
+void *skHashTable_get(const skHashTable *table, void *key);
 
-bool skHashTable_contains(skHashTable *table, void *key);
+bool skHashTable_contains(const skHashTable *table, void *key);
 
-size_t skHashTable_len(skHashTable *table);
+size_t skHashTable_len(const skHashTable *table);
 
 bool skHashTable_remove(skHashTable *table, void *key);
 

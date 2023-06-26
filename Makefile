@@ -21,8 +21,8 @@ INCLUDES = -Isrc
 DEPFLAGS = -MD -MP
 DBUG = -DSK_DBUG
 OPT_BUILD = -Os
-CFLAGS := -Wall -Werror -Wextra -Wpedantic -std=c99 $(OPT_BUILD) $(INCLUDES) $(DEPFLAGS)
-DBUG_CFLAGS := -Wall -Werror -Wextra -Wpedantic -std=c99 $(INCLUDES) $(DEPFLAGS)
+CFLAGS := -Wall -Werror -Wextra -Wpedantic -ansi $(OPT_BUILD) $(INCLUDES) $(DEPFLAGS)
+DBUG_CFLAGS := -Wall -Werror -Wextra -Wpedantic -ansi $(INCLUDES) $(DEPFLAGS)
 
 all: $(DBUG_DIR)/$(LIB) $(RELEASE_DIR)/$(LIB)
 

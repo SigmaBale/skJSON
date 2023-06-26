@@ -17,7 +17,7 @@ json_setup(void)
     printf("\n\n\n");
     if((fd = open("test.json", 'r')) == -1) {
         fprintf(stderr, "Error opening test.json\n");
-        return;
+        exit(EXIT_FAILURE);
     }
 
     n = read(fd, buf, BUFSIZ);
@@ -269,7 +269,6 @@ Test(SkJson, ParsePrimitives)
 
     skJsonNode* err_node = skparse_json_number(scanner, NULL);
     cr_assert(SK_ERROR_NODE == err_node->type);
-    cr_assert_str_eq(err_node->data.j_err, "failed to parse Json Number");
     skJsonNode_drop(err_node);
 }
 
@@ -279,7 +278,7 @@ json_setup_complex(void)
     printf("\n\n\n");
     if((fd = open("complex.json", 'r')) == -1) {
         fprintf(stderr, "Error opening complex.json\n");
-        return;
+        exit(EXIT_FAILURE);
     }
 
     n = read(fd, buf, BUFSIZ);
@@ -431,9 +430,10 @@ Test(skJsonComplex, ParseWhole)
 {
     cr_assert(scanner != NULL);
 
+    skScanner_next(scanner);
+    cr_assert(skScanner_peek(scanner).type == SK_LCURLY);
     skJsonNode* root = skJsonNode_new(scanner, NULL);
     cr_assert(root != NULL);
-    print_node(root);
     cr_assert(root->type == SK_OBJECT_NODE);
     cr_assert(root->index == 0);
     cr_assert(root->parent == NULL);
@@ -447,3 +447,16 @@ Test(skJsonComplex, ParseWhole)
 
     skJsonNode_drop(root);
 }
+
+
+void
+setup_final(void)
+{
+    if((fd = open("meta_github.json", 'r')) == -1) {
+        fprintf(stderr, "Error opening file 'meta_github.json'\n");
+        exit(EXIT_FAILURE);
+    }
+
+}
+
+Test(skJsonFinal, ParseComplete) { }

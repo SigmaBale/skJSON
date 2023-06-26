@@ -1,30 +1,37 @@
-// clang-format off
+#ifdef SK_DBUG
+#include <assert.h>
+#endif
+/* clang-format off */
 #include <stdbool.h>
-#include "sknode.h"
+#include "skerror.h"
+#include "skutils.h"
 #include "skscanner.h"
 #include "skvec.h"
-#include <assert.h>
 #include <ctype.h>
 #include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
+/* clang-format on */
 
-// clang-format on
-
-#define in_bounds(iter, bound) ((iter)->end >= (bound))
+#define in_iter_bounds(iter, bound) ((iter)->end >= (bound))
 
 skScanner*
 skScanner_new(void* buffer, size_t bufsize)
 {
-    if(buffer == NULL || bufsize == 0) {
+    skScanner* scanner;
+
+    if(is_null(buffer) || bufsize == 0) {
         return NULL;
     }
 
-    skScanner* scanner = malloc(sizeof(skScanner));
-    null_check_with_err_and_ret(scanner, PRINT_OOM_ERR, NULL);
+    scanner = malloc(sizeof(skScanner));
+    if(is_null(scanner)) {
+        THROW_ERR(OutOfMemory);
+        return NULL;
+    }
 
-    scanner->iter  = skCharIter_new(buffer, bufsize - 1);
-    scanner->token = (skToken) { 0 };
+    /* Leave token field as random garbo */
+    scanner->iter = skCharIter_new(buffer, bufsize - 1);
 
     return scanner;
 }
@@ -38,12 +45,9 @@ skScanner_peek(const skScanner* scanner)
 void
 skScanner_skip(skScanner* scanner, size_t n, ...)
 {
-    if(n == 0) {
-        return;
-    }
-
     skToken      token;
-    skTokenType  types[n];
+    /* Variable sized arrays are not supported by C90 */
+    skTokenType  types[3];
     va_list      ap;
     unsigned int i;
 
@@ -54,7 +58,6 @@ skScanner_skip(skScanner* scanner, size_t n, ...)
     }
 
     token = skScanner_peek(scanner);
-
     for(i = 0; n > i; i++) {
         if(types[i] == token.type) {
             if((token = skScanner_next(scanner)).type == SK_EOF) {
@@ -70,14 +73,15 @@ skScanner_skip(skScanner* scanner, size_t n, ...)
 void
 skScanner_skip_until(skScanner* scanner, size_t n, ...)
 {
+    skToken      token;
+    /* Variable sized arrays are not supported by C90 */
+    skTokenType  types[3];
+    va_list      ap;
+    unsigned int i;
+
     if(n == 0) {
         return;
     }
-
-    skToken      token;
-    skTokenType  types[n];
-    va_list      ap;
-    unsigned int i;
 
     va_start(ap, n);
 
@@ -86,7 +90,6 @@ skScanner_skip_until(skScanner* scanner, size_t n, ...)
     }
 
     token = skScanner_peek(scanner);
-
     while(token.type != SK_EOF) {
         for(i = 0; n > i; i++) {
             if(types[i] == token.type) {
@@ -102,40 +105,47 @@ skScanner_set_string_token(skScanner* scanner)
 {
     int         c;
     size_t      len;
-    skToken*    token    = &scanner->token;
-    skCharIter* iterator = &scanner->iter;
+    skToken*    token;
+    skCharIter* iterator;
+
+    token    = &scanner->token;
+    iterator = &scanner->iter;
 
     token->type       = SK_STRING;
     token->lexeme.ptr = skCharIter_next_address(iterator);
     token->lexeme.len = 0;
 
     iterator->state.in_jstring = true;
-    /// Advance iterator until we hit closing quotes
+    /* Advance iterator until we hit closing quotes */
     for(len = 0; (c = skCharIter_next(iterator)) != '"'; len++) {
         if(c == EOF) {
-            /// We reached end of file and string is invalid
+            /* We reached end of file and string is invalid */
             scanner->token.type = SK_INVALID;
             break;
         }
     }
     iterator->state.in_jstring = false;
 
-    /// String is properly enclosed
+    /* String is properly enclosed */
     token->lexeme.len = len;
 }
 
 static void
 skScanner_set_bool_or_null_token(skScanner* scanner, char ch)
 {
-    char*       start         = skCharIter_next_address(&scanner->iter) - 1;
-    skCharIter* iter          = &scanner->iter;
+    char*       start;
+    skCharIter* iter;
+
+    start = skCharIter_next_address(&scanner->iter) - 1;
+    iter  = &scanner->iter;
+
     scanner->token.type       = SK_INVALID;
     scanner->token.lexeme.ptr = start;
     scanner->token.lexeme.len = 0;
 
     switch(ch) {
         case 't':
-            if(in_bounds(iter, start + 3) && strncmp(start, "true", 4) == 0) {
+            if(in_iter_bounds(iter, start + 3) && strncmp(start, "true", 4) == 0) {
                 scanner->token.type = SK_TRUE;
                 skCharIter_advance(iter, 3);
 #ifdef SK_DBUG
@@ -145,7 +155,7 @@ skScanner_set_bool_or_null_token(skScanner* scanner, char ch)
             }
             break;
         case 'f':
-            if(in_bounds(iter, start + 4) && strncmp(start, "false", 5) == 0) {
+            if(in_iter_bounds(iter, start + 4) && strncmp(start, "false", 5) == 0) {
                 scanner->token.type = SK_FALSE;
                 skCharIter_advance(iter, 4);
 #ifdef SK_DBUG
@@ -155,7 +165,7 @@ skScanner_set_bool_or_null_token(skScanner* scanner, char ch)
             }
             break;
         case 'n':
-            if(in_bounds(iter, start + 3) && strncmp(start, "null", 4) == 0) {
+            if(in_iter_bounds(iter, start + 3) && strncmp(start, "null", 4) == 0) {
                 scanner->token.type = SK_NULL;
                 skCharIter_advance(iter, 3);
 #ifdef SK_DBUG
@@ -172,15 +182,16 @@ skScanner_set_bool_or_null_token(skScanner* scanner, char ch)
     }
 }
 
-inline static skToken
+static skToken
 skToken_new(skTokenType type, char* start, size_t len)
 {
-    return (skToken) {
-        .type   = type,
-        .lexeme = skSlice_new(start, len),
-    };
+    skToken token;
+    token.type   = type;
+    token.lexeme = skSlice_new(start, len);
+    return token;
 }
 
+/* Token Debug print */
 void
 skToken_print(skToken token)
 {
@@ -259,8 +270,9 @@ skScanner_next(skScanner* scanner)
 {
     skToken* token = &scanner->token;
     int      c;
+    char*    ch;
 
-    char* ch = skCharIter_next_address(&scanner->iter);
+    ch = skCharIter_next_address(&scanner->iter);
     switch((c = skCharIter_next(&scanner->iter))) {
         case '{':
             *token = skToken_new(SK_LCURLY, ch, 1);

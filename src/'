@@ -15,7 +15,7 @@ typedef enum {
   SK_INT_NODE = 8,
   SK_DOUBLE_NODE = 16,
   SK_BOOL_NODE = 32,
-  SK_NULL_NODE = 64
+  SK_NULL_NODE = 64,
 } skNodeType;
 
 /************ Json Data ***************/
@@ -33,7 +33,7 @@ typedef union skNodeData {
 typedef struct skJsonNode {
   skNodeType type;
   skNodeData data;
-  struct skJsonNode *parent;
+  skJsonNode *parent;
   size_t index;
 } skJsonNode;
 

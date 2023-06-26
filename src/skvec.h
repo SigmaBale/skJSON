@@ -1,19 +1,10 @@
 #ifndef __SK_VEC_H__
 #define __SK_VEC_H__
 
+#include "sktypes.h"
 #include <stdio.h>
 
-#define PRINT_IDX_OOB fprintf(stderr, "Index out of bounds!\n");
-#define PRINT_ALLOC_TOO_BIG fprintf(stderr, "Allocation is too big");
-
 typedef struct skVec skVec;
-
-struct skVec {
-  unsigned char *allocation;
-  size_t ele_size;
-  size_t capacity;
-  size_t len;
-};
 
 typedef void (*FreeFn)(void *);
 
@@ -29,11 +20,15 @@ size_t skVec_len(skVec *vec);
 
 size_t skVec_capacity(skVec *vec);
 
+size_t skVec_element_size(skVec *vec);
+
 void skVec_drop(skVec *vec, FreeFn free_fn);
 
 void *skVec_index(skVec *vec, size_t index);
 
 void *skVec_front(skVec *vec);
+
+void *skVec_inner_unsafe(skVec *vec);
 
 void *skVec_back(skVec *vec);
 

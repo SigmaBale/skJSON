@@ -1,14 +1,14 @@
 #include "skslice.h"
+#include "skutils.h"
 #include <stdbool.h>
-#include <stdint.h>
 
 skStrSlice
 skSlice_new(char* ptr, size_t len)
 {
-    return (skStrSlice) {
-        .ptr = ptr,
-        .len = len,
-    };
+    skStrSlice slice;
+    slice.ptr = ptr;
+    slice.len = len;
+    return slice;
 }
 
 char*
@@ -26,11 +26,13 @@ skSlice_end(const skStrSlice* slice)
 char*
 skSlice_index(const skStrSlice* slice, size_t index)
 {
+    char* temp;
+
     if(slice == NULL) {
         return NULL;
     }
 
-    char* temp = slice->ptr + index;
+    temp = slice->ptr + index;
 
     if(temp > slice->ptr + slice->len) {
         return NULL;
@@ -42,31 +44,52 @@ skSlice_index(const skStrSlice* slice, size_t index)
 long int
 skSlice_len(const skStrSlice* slice)
 {
-    return (slice == NULL) ? -1 : (long int) slice->len;
+    return (is_null(slice)) ? -1 : (long int) slice->len;
+}
+
+skJsonState
+skJsonState_new(void)
+{
+    skJsonState state;
+    state.ln         = 1;
+    state.col        = 1;
+    state.depth      = 1;
+    state.in_jstring = false;
+    return state;
 }
 
 skCharIter
 skCharIter_new(const char* ptr, size_t len)
 {
-    return (skCharIter) {
-        .next = (char*) ptr,
-        .end  = (char*) ptr + len,
-        .state
-        = (skJsonState) {.ln = 1, .col = 1, .depth = 1, .in_jstring = false},
-    };
+    skCharIter  iter;
+    skJsonState state;
+
+    state      = skJsonState_new();
+    iter.next  = (char*) ptr;
+    iter.end   = (char*) ptr + len;
+    iter.state = state;
+
+    return iter;
 }
 
 skCharIter
 skCharIter_from_slice(skStrSlice* slice)
 {
-    return (skCharIter) { .next = skSlice_start(slice),
-                          .end  = skSlice_end(slice) };
+    skCharIter  iter;
+    skJsonState state;
+
+    state      = skJsonState_new();
+    iter.next  = skSlice_start(slice);
+    iter.end   = skSlice_end(slice);
+    iter.state = state;
+
+    return iter;
 }
 
 char*
 skCharIter_next_address(const skCharIter* iterator)
 {
-    if(iterator == NULL || iterator->next == NULL) {
+    if(is_null(iterator) || is_null(iterator->next)) {
         return NULL;
     }
 
@@ -76,7 +99,6 @@ skCharIter_next_address(const skCharIter* iterator)
 static void
 skCharIter_update_state(skCharIter* iterator, char ch)
 {
-
     switch(ch) {
         case '{':
             if(!iterator->state.in_jstring) {
@@ -119,11 +141,13 @@ skCharIter_update_state(skCharIter* iterator, char ch)
 int
 skCharIter_next(skCharIter* iterator)
 {
-    if(iterator == NULL || iterator->next == NULL) {
+    char temp;
+
+    if(is_null(iterator) || is_null(iterator->next)) {
         return EOF;
     }
 
-    char temp = *iterator->next;
+    temp = *iterator->next;
 
     if(iterator->next == iterator->end) {
         iterator->next = NULL;
@@ -138,11 +162,13 @@ skCharIter_next(skCharIter* iterator)
 int
 skCharIter_advance(skCharIter* iterator, size_t amount)
 {
-    if(iterator == NULL || iterator->next == NULL) {
+    int c;
+
+    if(is_null(iterator) || is_null(iterator->next)) {
         return EOF;
     }
 
-    int c = skCharIter_peek(iterator);
+    c = skCharIter_peek(iterator);
 
     while(amount--) {
         if((c = skCharIter_next(iterator)) == EOF) {
@@ -153,13 +179,16 @@ skCharIter_advance(skCharIter* iterator, size_t amount)
     return c;
 }
 
+/* Useless for now */
 void
 skCharIter_depth_above(skCharIter* iterator)
 {
+    size_t target_depth;
+
     if(iterator->state.depth < 2) {
         skCharIter_drain(iterator);
     } else {
-        size_t target_depth = iterator->state.depth - 1;
+        target_depth = iterator->state.depth - 1;
 
         while(iterator->state.depth != target_depth) {
             skCharIter_next(iterator);
@@ -170,7 +199,7 @@ skCharIter_depth_above(skCharIter* iterator)
 void
 skCharIter_drain(skCharIter* iterator)
 {
-    if(iterator != NULL) {
+    if(!is_null(iterator)) {
         iterator->next = NULL;
     }
 }
@@ -178,7 +207,7 @@ skCharIter_drain(skCharIter* iterator)
 int
 skCharIter_peek(const skCharIter* iterator)
 {
-    if(iterator == NULL || iterator->next == NULL) {
+    if(is_null(iterator) || is_null(iterator->next)) {
         return EOF;
     }
 
