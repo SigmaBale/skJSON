@@ -21,6 +21,7 @@ skScanner_new(void* buffer, size_t bufsize)
     skScanner* scanner;
 
     if(is_null(buffer) || bufsize == 0) {
+        printf("Buffer or bufsize is zero returning null\n");
         return NULL;
     }
 

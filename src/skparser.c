@@ -17,47 +17,6 @@ skJsonNode*  skparse_json_number(skScanner* scanner, skJsonNode* parent);
 skJsonNode*  skparse_json_bool(skScanner* scanner, skJsonNode* parent);
 skJsonNode*  skparse_json_null(skScanner* scanner, skJsonNode* parent);
 
-/* TODO: Implement public interface around this struct */
-struct skJson {
-    skJsonNode* root;
-};
-
-skJson*
-sk_json_new(void* buff, size_t bufsize)
-{
-    skScanner*  scanner;
-    skJson*     json;
-    skJsonNode* root;
-
-    if(is_null(buff) || bufsize == 0) {
-        return NULL;
-    }
-
-    scanner = skScanner_new(buff, bufsize);
-    if(is_null(scanner)) {
-        return NULL;
-    }
-
-    json = malloc(sizeof(skJson));
-    if(is_null(json)) {
-        free(scanner);
-        THROW_ERR(OutOfMemory);
-        return NULL;
-    }
-
-    /* Construct the parse tree */
-    root = skJsonNode_new(scanner, NULL);
-    if(is_null(root)) {
-        free(scanner);
-        free(json);
-        return NULL;
-    }
-
-    json->root = root;
-
-    return json;
-}
-
 skJsonNode*
 skJsonNode_new(skScanner* scanner, skJsonNode* parent)
 {

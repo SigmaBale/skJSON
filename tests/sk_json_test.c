@@ -1,13 +1,19 @@
-// clang-format off
+#include "../src/skparser.h"
 #include <criterion/criterion.h>
 #include <criterion/internal/assert.h>
-#include "../src/skparser.h"
 #include <fcntl.h>
 #include <unistd.h>
-// clang-format on
+
+skJsonString skJsonString_new_internal(skToken token);
+skJsonNode*  skparse_json_object(skScanner* scanner, skJsonNode* parent);
+skJsonNode*  skparse_json_array(skScanner* scanner, skJsonNode* parent);
+skJsonNode*  skparse_json_string(skScanner* scanner, skJsonNode* parent);
+skJsonNode*  skparse_json_number(skScanner* scanner, skJsonNode* parent);
+skJsonNode*  skparse_json_bool(skScanner* scanner, skJsonNode* parent);
+skJsonNode*  skparse_json_null(skScanner* scanner, skJsonNode* parent);
 
 skScanner* scanner;
-char       buf[BUFSIZ];
+char       buf[1000000];
 int        fd;
 int        n;
 
@@ -306,72 +312,64 @@ Test(skJsonComplex, ParseObjects)
     skJsonNode* arr_node = skparse_json_array(scanner, NULL);
     cr_assert(arr_node != NULL);
     cr_assert(arr_node->type == SK_ARRAY_NODE);
-    cr_assert(arr_node->data.j_array->len == 7);
+    cr_assert(skVec_len(arr_node->data.j_array) == 7);
     skVec*      nodes = arr_node->data.j_array;
     skJsonNode* temp;
 
-    cr_assert(
-        (temp = ((skJsonNode*) skVec_index(nodes, 0)))->type == SK_STRING_NODE);
+    cr_assert((temp = ((skJsonNode*) skVec_index(nodes, 0)))->type == SK_STRING_NODE);
     cr_assert_str_eq(temp->data.j_string, "one");
     cr_assert(temp->index == 0);
     cr_assert(temp->parent->index == 0);
     cr_assert(temp->parent->type == SK_ARRAY_NODE);
     cr_assert(temp->parent->parent == NULL);
-    cr_assert(temp->parent->data.j_array->len == 7);
+    cr_assert(skVec_len(temp->parent->data.j_array) == 7);
 
-    cr_assert(
-        (temp = ((skJsonNode*) skVec_index(nodes, 1)))->type == SK_STRING_NODE);
+    cr_assert((temp = ((skJsonNode*) skVec_index(nodes, 1)))->type == SK_STRING_NODE);
     cr_assert_str_eq(temp->data.j_string, "two");
     cr_assert(temp->index == 1);
     cr_assert(temp->parent->index == 0);
     cr_assert(temp->parent->type == SK_ARRAY_NODE);
     cr_assert(temp->parent->parent == NULL);
-    cr_assert(temp->parent->data.j_array->len == 7);
+    cr_assert(skVec_len(temp->parent->data.j_array) == 7);
 
-    cr_assert(
-        (temp = ((skJsonNode*) skVec_index(nodes, 2)))->type == SK_INT_NODE);
+    cr_assert((temp = ((skJsonNode*) skVec_index(nodes, 2)))->type == SK_INT_NODE);
     cr_assert(temp->data.j_int == 3);
     cr_assert(temp->index == 2);
     cr_assert(temp->parent->index == 0);
     cr_assert(temp->parent->type == SK_ARRAY_NODE);
     cr_assert(temp->parent->parent == NULL);
-    cr_assert(temp->parent->data.j_array->len == 7);
+    cr_assert(skVec_len(temp->parent->data.j_array) == 7);
 
-    cr_assert(
-        (temp = ((skJsonNode*) skVec_index(nodes, 3)))->type == SK_DOUBLE_NODE);
+    cr_assert((temp = ((skJsonNode*) skVec_index(nodes, 3)))->type == SK_DOUBLE_NODE);
     cr_assert(temp->data.j_double == 4.0e+1);
     cr_assert(temp->index == 3);
     cr_assert(temp->parent->index == 0);
     cr_assert(temp->parent->type == SK_ARRAY_NODE);
     cr_assert(temp->parent->parent == NULL);
-    cr_assert(temp->parent->data.j_array->len == 7);
+    cr_assert(skVec_len(temp->parent->data.j_array) == 7);
 
-    cr_assert(
-        (temp = ((skJsonNode*) skVec_index(nodes, 4)))->type == SK_BOOL_NODE);
+    cr_assert((temp = ((skJsonNode*) skVec_index(nodes, 4)))->type == SK_BOOL_NODE);
     cr_assert(temp->data.j_boolean == true);
     cr_assert(temp->index == 4);
     cr_assert(temp->parent->index == 0);
     cr_assert(temp->parent->type == SK_ARRAY_NODE);
     cr_assert(temp->parent->parent == NULL);
-    cr_assert(temp->parent->data.j_array->len == 7);
+    cr_assert(skVec_len(temp->parent->data.j_array) == 7);
 
-    cr_assert(
-        (temp = ((skJsonNode*) skVec_index(nodes, 5)))->type == SK_BOOL_NODE);
+    cr_assert((temp = ((skJsonNode*) skVec_index(nodes, 5)))->type == SK_BOOL_NODE);
     cr_assert(temp->data.j_boolean == false);
     cr_assert(temp->index == 5);
     cr_assert(temp->parent->index == 0);
     cr_assert(temp->parent->type == SK_ARRAY_NODE);
     cr_assert(temp->parent->parent == NULL);
-    cr_assert(temp->parent->data.j_array->len == 7);
+    cr_assert(skVec_len(temp->parent->data.j_array) == 7);
 
-    cr_assert(
-        (temp = ((skJsonNode*) skVec_index(nodes, 6)))->type == SK_NULL_NODE);
+    cr_assert((temp = ((skJsonNode*) skVec_index(nodes, 6)))->type == SK_NULL_NODE);
     cr_assert(temp->index == 6);
     cr_assert(temp->parent->index == 0);
     cr_assert(temp->parent->type == SK_ARRAY_NODE);
     cr_assert(temp->parent->parent == NULL);
-    cr_assert(temp->parent->data.j_array->len == 7);
-    cr_assert(nodes->len == 7);
+    cr_assert(skVec_len(temp->parent->data.j_array) == 7);
     skJsonNode_drop(arr_node);
 
     cr_assert(skScanner_peek(scanner).type == SK_COMMA);
@@ -448,6 +446,7 @@ Test(skJsonComplex, ParseWhole)
     skJsonNode_drop(root);
 }
 
+skJson* json_final;
 
 void
 setup_final(void)
@@ -457,6 +456,35 @@ setup_final(void)
         exit(EXIT_FAILURE);
     }
 
+    int buff_size = lseek(fd, 0, SEEK_END);
+
+    if(buff_size == -1) {
+        fprintf(stderr, "Error measuring file size of 'meta_github.json'\n");
+        exit(EXIT_FAILURE);
+    }
+
+    if(lseek(fd, 0, SEEK_SET) == -1) {
+        fprintf(stderr, "Error setting the offset to the start of the file\n");
+        exit(EXIT_FAILURE);
+    }
+
+    if((n = read(fd, buf, buff_size)) == -1) {
+        fprintf(stderr, "Error reading file 'meta_github.json'\n");
+        exit(EXIT_FAILURE);
+    }
 }
 
-Test(skJsonFinal, ParseComplete) { }
+void
+teardown_final(void)
+{
+    skJson_drop(json_final);
+    close(fd);
+}
+
+TestSuite(skJsonFinal, .init = setup_final, .fini = json_teardown);
+
+Test(skJsonFinal, ParseComplete)
+{
+    json_final = sk_json_new(buf, n);
+    cr_assert(json_final != NULL);
+}

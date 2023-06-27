@@ -4,7 +4,6 @@
 #include <assert.h>
 #include <limits.h>
 #include <memory.h>
-#include <stdbool.h>
 #include <stdlib.h>
 
 struct skVec {
