@@ -9,7 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-bool                skJsonString_isvalid(skStrSlice* slice);
+bool                skJsonString_isvalid(const skStrSlice* slice);
 static skJsonString skJsonString_new_internal(skStrSlice* slice);
 static skJsonNode*  skparse_json_object(skScanner* scanner, skJsonNode* parent);
 static skJsonNode*  skparse_json_array(skScanner* scanner, skJsonNode* parent);
@@ -279,7 +279,7 @@ skJsonString_new_internal(skStrSlice* slice)
 }
 
 bool
-skJsonString_isvalid(skStrSlice* slice)
+skJsonString_isvalid(const skStrSlice* slice)
 {
     static const unsigned char UNIC_HEX_UTF16_CODES = 4;
 
@@ -288,14 +288,14 @@ skJsonString_isvalid(skStrSlice* slice)
     bool       hex;
 
     hex      = false;
-    iterator = skCharIter_from_slice(slice);
+    iterator = skCharIter_from_slice(discard_const(slice));
 
     while((c = skCharIter_next(&iterator)) != EOF) {
         if(c < 020) {
             return false;
         }
 
-        /* Check if the hex value is valid */
+        /* Check if the hex value is valid if flag is set */
         for(count = 0; hex && count < UNIC_HEX_UTF16_CODES; count++) {
             if(!isxdigit(c)) {
                 return false;

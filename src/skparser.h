@@ -1,10 +1,8 @@
-#ifndef __SK_JSON_H__
-#define __SK_JSON_H__
+#ifndef __SK_PARSER_H__
+#define __SK_PARSER_H__
 
-#include "sknode.h"
-#include "skscanner.h"
-#include <stddef.h>
+#include "skslice.h"
 
-bool skJsonString_isvalid(skStrSlice* slice);
+bool skJsonString_isvalid(const skStrSlice* slice);
 
 #endif

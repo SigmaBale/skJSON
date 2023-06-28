@@ -13,6 +13,7 @@
 #define CMP_FN_ERR " comparison function can't be NULL"
 #define WRONG_NT_ERR " wrong node type"
 #define INVALID_STR_ERR " invalid json string"
+#define INVALID_VAL_ERR " invalid value provided"
 
 /* Warnings text */
 #define OVERFLOW_WARN " detected overflow"
@@ -27,7 +28,8 @@ enum {
   AllocationTooLarge = 6,
   MissingComparisonFn = 7,
   WrongNodeType = 8,
-  InvalidString = 9
+  InvalidString = 9,
+  InvalidValue = 10,
 };
 
 /* Possible Warnings */
@@ -70,6 +72,9 @@ enum { OverflowDetected = 128 };
       break;                                                                   \
     case InvalidString:                                                        \
       errmsg = filename ":" STRINGIFY(line) INVALID_STR_ERR;                   \
+      break;                                                                   \
+    case InvalidValue:                                                         \
+      errmsg = filename ":" STRINGIFY(line) INVALID_VAL_ERR;                   \
       break;                                                                   \
     }                                                                          \
     SK_PRINT_ERR(errmsg);                                                      \

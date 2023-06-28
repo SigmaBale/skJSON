@@ -20,7 +20,7 @@ static const unsigned int PRIMES[] = {
 
 typedef struct _skHashCell skHashCell;
 
-static void*  _skHashTable_probe(const skHashTable* table, void* key, bool* found);
+static void*  _skHashTable_probe(const skHashTable* table, const void* key, bool* found);
 static size_t _skHash_str(const char* str);
 static double _skHashTable_load_factor(const skHashTable* table);
 static bool   _skHashTable_expand(skHashTable* table);
@@ -179,7 +179,7 @@ _skHashTable_expand(skHashTable* table)
 }
 
 void*
-_skHashTable_probe(const skHashTable* table, void* key, bool* found)
+_skHashTable_probe(const skHashTable* table, const void* key, bool* found)
 {
     skVec*      cells;
     size_t      storage_size;
@@ -207,12 +207,17 @@ _skHashTable_probe(const skHashTable* table, void* key, bool* found)
 }
 
 void*
-skHashTable_get(const skHashTable* table, void* key)
+skHashTable_get(const skHashTable* table, const void* key)
 {
     skHashCell* cell;
     bool        found;
 
-    if(is_null(table) || is_null(key)) {
+    if(is_null(table)) {
+        return NULL;
+    }
+
+    if(is_null(key)) {
+        THROW_ERR(InvalidKey);
         return NULL;
     }
 
@@ -222,13 +227,24 @@ skHashTable_get(const skHashTable* table, void* key)
     return (found) ? cell->value : NULL;
 }
 
+/* TODO: Make table copy the key */
 bool
-skHashTable_insert(skHashTable* table, void* key, void* value)
+skHashTable_insert(skHashTable* table, const void* key, const void* value)
 {
     bool        found;
     skHashCell* cell;
 
-    if(is_null(table) || is_null(key)) {
+    if(is_null(table)) {
+        return false;
+    }
+
+    if(is_null(key)) {
+        THROW_ERR(InvalidKey);
+        return false;
+    }
+
+    if(is_null(value)) {
+        THROW_ERR(InvalidValue);
         return false;
     }
 #ifdef SK_DBUG
@@ -245,14 +261,14 @@ skHashTable_insert(skHashTable* table, void* key, void* value)
     cell  = _skHashTable_probe(table, key, &found);
 
     if(!found) {
-        cell->key   = key;
+        cell->key   = discard_const(key);
         cell->taken = true;
         table->len++;
     } else if(has_val_destructor(table)) {
         table->free_val(cell->value);
     }
 
-    cell->value = value;
+    cell->value = discard_const(value);
 
     return true;
 }
@@ -262,7 +278,12 @@ skHashTable_remove(skHashTable* table, void* key)
 {
     skHashCell* cell;
 
-    if(is_null(table) || is_null(key)) {
+    if(is_null(table)) {
+        return false;
+    }
+
+    if(is_null(key)) {
+        THROW_ERR(InvalidKey);
         return false;
     }
 
@@ -299,11 +320,12 @@ skHashTable_len(const skHashTable* table)
 }
 
 bool
-skHashTable_contains(const skHashTable* table, void* key)
+skHashTable_contains(const skHashTable* table, const void* key)
 {
     if(is_null(table)) {
         return false;
     }
+
     return (is_null(skHashTable_get(table, key))) ? false : true;
 }
 
