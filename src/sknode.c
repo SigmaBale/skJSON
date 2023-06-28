@@ -10,9 +10,6 @@
 /* Err msg buffer size */
 #define ERR_SIZE 100
 
-/* Naive implementation of strdup function because ANSI-C doesn't have it */
-static char* strdup_ansi(const char* src);
-
 skJsonNode*
 skJsonNode_default(skJsonNode* parent)
 {
@@ -74,26 +71,6 @@ skJsonArray_new(skJsonNode* parent)
     return array_node;
 }
 
-static char*
-strdup_ansi(const char* src)
-{
-    size_t len;
-    char*  str;
-
-    len = strlen(src) + 1;
-    str = malloc(len);
-
-    if(is_null(str)) {
-        THROW_ERR(OutOfMemory);
-        return NULL;
-    }
-
-    memcpy(str, src, len);
-    return str;
-}
-
-/* TODO: Add State struct information such as column and line
- * number to the error message, or even make skJsonError a struct */
 skJsonNode*
 skJsonError_new(skJsonString msg, skJsonState state, skJsonNode* parent)
 {
@@ -227,12 +204,16 @@ skJsonNode_drop(skJsonNode* node)
         }
 
         parent = node->parent;
-        if(!is_null(parent)) {
-#ifdef SK_DBUG
-            assert(parent->type == SK_ARRAY_NODE);
-#endif
+        if(!is_null(parent) && parent->type == SK_ARRAY_NODE) {
+            /* Json Array nodes are directly copied into the json array (vec)
+             * this is why we can only remove these values instead of freeing.*/
             skVec_remove(parent->data.j_array, node->index, NULL);
         } else {
+            /* All the other nodes that do not have a parent or are part of
+             * the Json Object can be freed, note that the situation where
+             * the node is part of the Json Object and is getting directly freed
+             * is when we are dropping the whole Json Object, it is impossible
+             * for user to directly free/drop the node that is part of the Json Object */
             free(node);
         }
     }

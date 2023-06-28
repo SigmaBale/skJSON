@@ -12,10 +12,11 @@ typedef enum {
   SK_OBJECT_NODE = 1,
   SK_ARRAY_NODE = 2,
   SK_STRING_NODE = 4,
-  SK_INT_NODE = 8,
-  SK_DOUBLE_NODE = 16,
-  SK_BOOL_NODE = 32,
-  SK_NULL_NODE = 64
+  SK_STRINGLIT_NODE = 8,
+  SK_INT_NODE = 16,
+  SK_DOUBLE_NODE = 32,
+  SK_BOOL_NODE = 64,
+  SK_NULL_NODE = 128
 } skNodeType;
 
 /************ Json Data ***************/

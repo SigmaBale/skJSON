@@ -5,11 +5,6 @@
 #include "skscanner.h"
 #include <stddef.h>
 
-skJsonNode *skparse_json_object(skScanner *scanner, skJsonNode *parent);
-skJsonNode *skparse_json_array(skScanner *scanner, skJsonNode *parent);
-skJsonNode *skparse_json_string(skScanner *scanner, skJsonNode *parent);
-skJsonNode *skparse_json_number(skScanner *scanner, skJsonNode *parent);
-skJsonNode *skparse_json_bool(skScanner *scanner, skJsonNode *parent);
-skJsonNode *skparse_json_null(skScanner *scanner, skJsonNode *parent);
+bool skJsonString_isvalid(skStrSlice* slice);
 
 #endif

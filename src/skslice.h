@@ -17,7 +17,7 @@ typedef struct {
  * 'skStrSlice' constructor, PTR denotes the start of sequence,
  * LEN is the number of elements in the sequence.
  */
-skStrSlice skSlice_new(char *ptr, size_t len);
+skStrSlice skSlice_new(const char *ptr, size_t len);
 
 /**
  * Returns the pointer to the current/starting byte of SLICE.

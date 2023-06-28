@@ -3,10 +3,10 @@
 #include <stdbool.h>
 
 skStrSlice
-skSlice_new(char* ptr, size_t len)
+skSlice_new(const char* ptr, size_t len)
 {
     skStrSlice slice;
-    slice.ptr = ptr;
+    slice.ptr = discard_const(ptr);
     slice.len = len;
     return slice;
 }

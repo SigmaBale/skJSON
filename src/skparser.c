@@ -9,13 +9,14 @@
 #include <stdlib.h>
 #include <string.h>
 
-skJsonString skJsonString_new_internal(skToken token);
-skJsonNode*  skparse_json_object(skScanner* scanner, skJsonNode* parent);
-skJsonNode*  skparse_json_array(skScanner* scanner, skJsonNode* parent);
-skJsonNode*  skparse_json_string(skScanner* scanner, skJsonNode* parent);
-skJsonNode*  skparse_json_number(skScanner* scanner, skJsonNode* parent);
-skJsonNode*  skparse_json_bool(skScanner* scanner, skJsonNode* parent);
-skJsonNode*  skparse_json_null(skScanner* scanner, skJsonNode* parent);
+bool                skJsonString_isvalid(skStrSlice* slice);
+static skJsonString skJsonString_new_internal(skStrSlice* slice);
+static skJsonNode*  skparse_json_object(skScanner* scanner, skJsonNode* parent);
+static skJsonNode*  skparse_json_array(skScanner* scanner, skJsonNode* parent);
+static skJsonNode*  skparse_json_string(skScanner* scanner, skJsonNode* parent);
+static skJsonNode*  skparse_json_number(skScanner* scanner, skJsonNode* parent);
+static skJsonNode*  skparse_json_bool(skScanner* scanner, skJsonNode* parent);
+static skJsonNode*  skparse_json_null(skScanner* scanner, skJsonNode* parent);
 
 skJsonNode*
 skJsonNode_new(skScanner* scanner, skJsonNode* parent)
@@ -94,7 +95,7 @@ skparse_json_object(skScanner* scanner, skJsonNode* parent)
         if((token = skScanner_peek(scanner)).type == SK_STRING) {
 
             /* Parse the key */
-            key = skJsonString_new_internal(token);
+            key = skJsonString_new_internal(&token.lexeme);
             if(is_null(key)) {
                 return NULL;
             } else {
@@ -103,6 +104,7 @@ skparse_json_object(skScanner* scanner, skJsonNode* parent)
 
             skScanner_skip(scanner, 1, SK_WS);
 
+            /* We must have ':' */
             if(skScanner_peek(scanner).type != SK_COLON) {
                 free(key);
                 err = true;
@@ -114,7 +116,7 @@ skparse_json_object(skScanner* scanner, skJsonNode* parent)
             skScanner_skip(scanner, 1, SK_WS);
 
             /* Parse the value */
-            value = skJsonNode_new(scanner, NULL);
+            value = skJsonNode_new(scanner, object_node);
 
             if(is_null(value)) {
                 free(key);
@@ -147,7 +149,7 @@ skparse_json_object(skScanner* scanner, skJsonNode* parent)
     if(err || token.type != SK_RCURLY) {
         skJsonNode_drop(object_node);
         /* If 'value' was the error node return it, otherwise
-         * parsing this object was the reason of error. */
+         * error happened parsing this object */
         if(value->type == SK_ERROR_NODE) {
             return value;
         } else {
@@ -201,7 +203,7 @@ skparse_json_array(skScanner* scanner, skJsonNode* parent)
             start = false;
         }
 
-        /* Parse the array node */
+        /* Parse the array node/value */
         temp = skJsonNode_new(scanner, array_node);
         if(is_null(temp)) {
             skJsonNode_drop(array_node);
@@ -251,10 +253,9 @@ skparse_json_array(skScanner* scanner, skJsonNode* parent)
 /* Checks the validity of a string and allocates
  * storage for it if the json string is valid */
 skJsonString
-skJsonString_new_internal(skToken token)
+skJsonString_new_internal(skStrSlice* slice)
 {
     /* Number of hexadecimal code points for UTF-16 encoding */
-    static const unsigned char UNIC_HEX_UTF16_CODES = 4;
 
     int          c, count;
     bool         hex;
@@ -262,23 +263,42 @@ skJsonString_new_internal(skToken token)
     skCharIter   iterator;
     skJsonString jstring;
 
-    hex      = false;
-    iterator = skCharIter_from_slice(&token.lexeme);
-
-    /* If string is empty "" return the empty string... */
-    if(token.lexeme.len == 0) {
-        goto alloc_str;
+    if(slice->len != 0 && !skJsonString_isvalid(slice)) {
+        return NULL;
     }
+
+    jstring = malloc(bytes + 1); /* +1 for null terminator */
+    if(is_null(jstring)) {
+        THROW_ERR(OutOfMemory);
+        return NULL;
+    }
+
+    jstring        = strncpy(jstring, slice->ptr, bytes);
+    jstring[bytes] = '\0';
+    return jstring;
+}
+
+bool
+skJsonString_isvalid(skStrSlice* slice)
+{
+    static const unsigned char UNIC_HEX_UTF16_CODES = 4;
+
+    skCharIter iterator;
+    int        c, count;
+    bool       hex;
+
+    hex      = false;
+    iterator = skCharIter_from_slice(slice);
 
     while((c = skCharIter_next(&iterator)) != EOF) {
         if(c < 020) {
-            return NULL;
+            return false;
         }
 
         /* Check if the hex value is valid */
         for(count = 0; hex && count < UNIC_HEX_UTF16_CODES; count++) {
             if(!isxdigit(c)) {
-                return NULL;
+                return false;
             }
         }
 
@@ -301,24 +321,13 @@ skJsonString_new_internal(skToken token)
                     hex = true;
                     break;
                 default:
-                    return NULL;
+                    return false;
                     break;
             }
         }
     }
 
-alloc_str:
-    bytes = token.lexeme.len;
-
-    jstring = malloc(bytes + 1); /* +1 for null terminator */
-    if(is_null(jstring)) {
-        THROW_ERR(OutOfMemory);
-        return NULL;
-    }
-
-    jstring        = strncpy(jstring, token.lexeme.ptr, bytes);
-    jstring[bytes] = '\0';
-    return jstring;
+    return true;
 }
 
 skJsonNode*
@@ -329,7 +338,7 @@ skparse_json_string(skScanner* scanner, skJsonNode* parent)
 
     /* Get the SK_STRING token */
     token   = skScanner_peek(scanner);
-    jstring = skJsonString_new_internal(token);
+    jstring = skJsonString_new_internal(&token.lexeme);
 
     if(is_null(jstring)) {
         return skJsonError_new("failed parsing Json String", scanner->iter.state, parent);
@@ -467,6 +476,7 @@ print_node(skJsonNode* node)
             printf("ARRAY NODE -> len: %lu\n", skVec_len(node->data.j_array));
             break;
         case SK_STRING_NODE:
+        case SK_STRINGLIT_NODE:
             printf("STRING NODE -> '%s'\n", node->data.j_string);
             break;
         case SK_INT_NODE:

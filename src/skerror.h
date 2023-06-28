@@ -11,6 +11,8 @@
 #define INDEX_OOB_ERR " index out of bounds"
 #define ALLOC_ERR " allocation too large"
 #define CMP_FN_ERR " comparison function can't be NULL"
+#define WRONG_NT_ERR " wrong node type"
+#define INVALID_STR_ERR " invalid json string"
 
 /* Warnings text */
 #define OVERFLOW_WARN " detected overflow"
@@ -23,7 +25,9 @@ enum {
   OutOfMemory = 4,
   IndexOutOfBounds = 5,
   AllocationTooLarge = 6,
-  MissingComparisonFn = 7
+  MissingComparisonFn = 7,
+  WrongNodeType = 8,
+  InvalidString = 9
 };
 
 /* Possible Warnings */
@@ -60,6 +64,12 @@ enum { OverflowDetected = 128 };
       break;                                                                   \
     case MissingComparisonFn:                                                  \
       errmsg = filename ":" STRINGIFY(line) CMP_FN_ERR;                        \
+      break;                                                                   \
+    case WrongNodeType:                                                        \
+      errmsg = filename ":" STRINGIFY(line) WRONG_NT_ERR;                      \
+      break;                                                                   \
+    case InvalidString:                                                        \
+      errmsg = filename ":" STRINGIFY(line) INVALID_STR_ERR;                   \
       break;                                                                   \
     }                                                                          \
     SK_PRINT_ERR(errmsg);                                                      \

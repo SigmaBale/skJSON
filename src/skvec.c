@@ -188,11 +188,20 @@ skVec_index(skVec* vec, size_t index)
 void*
 skVec_pop(skVec* vec)
 {
+    void* retval;
+
     if(is_null(vec) || vec->len == 0) {
         return NULL;
     }
 
-    return _skVec_get(vec, --vec->len);
+    retval = malloc(vec->ele_size);
+    if(is_null(retval)) {
+        THROW_ERR(OutOfMemory);
+        return NULL;
+    }
+
+    memcpy(retval, _skVec_get(vec, --vec->len), vec->ele_size);
+    return retval;
 }
 
 size_t
