@@ -1,5 +1,6 @@
 #ifndef __SK_JSON_H__
 #define __SK_JSON_H__
+/* clang-format off */
 
 #include "sknode.h"
 #include <stddef.h>
@@ -27,13 +28,10 @@ PUBLIC(skJsonNode *) skJson_transform_into_int(skJsonNode *json, long int n);
 PUBLIC(skJsonNode *) skJson_transform_into_double(skJsonNode *json, double n);
 /* Transforms the 'json' element into Json Bool element with value 'boolean' */
 PUBLIC(skJsonNode *) skJson_transform_into_bool(skJsonNode *json, bool boolean);
-/* Transforms the 'json' element into Json String Reference element with value
- * 'string_ref' */
-PUBLIC(skJsonNode *)
-skJson_transform_into_stringlit(skJsonNode *json, const char *string_ref);
+/* Transforms the 'json' element into Json String Reference element with value 'string_ref' */
+PUBLIC(skJsonNode *) skJson_transform_into_stringlit(skJsonNode *json, const char *string_ref);
 /* Transforms the 'json' element into Json String element with value 'string' */
-PUBLIC(skJsonNode *)
-skJson_transform_into_string(skJsonNode *json, const char *string);
+PUBLIC(skJsonNode *) skJson_transform_into_string(skJsonNode *json, const char *string);
 /* Transforms the 'json' element into empty Json Array element */
 PUBLIC(skJsonNode *) skJson_transform_into_empty_array(skJsonNode *json);
 /* Transforms the 'json' element into empty Json Object element */
@@ -77,28 +75,23 @@ PUBLIC(skJsonNode *) skJson_array_new(void);
 /* Push 'string' into the 'json' array */
 PUBLIC(bool) skJson_array_push_str(skJsonNode *json, const char *string);
 /* Insert 'string' into the 'json' array at 'index'. */
-PUBLIC(bool)
-skJson_array_insert_str(skJsonNode *json, const char *string, size_t index);
+PUBLIC(bool) skJson_array_insert_str(skJsonNode *json, const char *string, size_t index);
 /* Push 'string' reference into the 'json' array. */
 PUBLIC(bool) skJson_array_push_strlit(skJsonNode *json, const char *string);
 /* Insert 'string' reference into the 'json' array at 'index'. */
-PUBLIC(bool)
-skJson_array_insert_strlit(skJsonNode *json, const char *string, size_t index);
+PUBLIC(bool) skJson_array_insert_strlit(skJsonNode *json, const char *string, size_t index);
 /* Push 'n' integer into the 'json' array. */
 PUBLIC(bool) skJson_array_push_int(skJsonNode *json, long int n);
 /* Insert 'n' integer into the 'json' array at 'index'. */
-PUBLIC(bool)
-skJson_array_insert_int(skJsonNode *json, long int n, size_t index);
+PUBLIC(bool) skJson_array_insert_int(skJsonNode *json, long int n, size_t index);
 /* Push 'n' double into the 'json' array. */
 PUBLIC(bool) skJson_array_push_double(skJsonNode *json, double n);
 /* Insert 'n' double into the 'json' array at 'index'. */
-PUBLIC(bool)
-skJson_array_insert_double(skJsonNode *json, double n, size_t index);
+PUBLIC(bool) skJson_array_insert_double(skJsonNode *json, double n, size_t index);
 /* Push 'boolean' into the 'json' array. */
 PUBLIC(bool) skJson_array_push_bool(skJsonNode *json, bool boolean);
 /* Insert 'boolean' into the 'json' array at 'index'. */
-PUBLIC(bool)
-skJson_array_insert_bool(skJsonNode *json, bool boolean, size_t index);
+PUBLIC(bool) skJson_array_insert_bool(skJsonNode *json, bool boolean, size_t index);
 /* Push NULL element into the 'json' array */
 PUBLIC(bool) skJson_array_push_null(skJsonNode *json);
 /* Insert NULL element into the 'json' array at 'index'. */
@@ -106,29 +99,22 @@ PUBLIC(bool) skJson_array_insert_null(skJsonNode *json, size_t index);
 /* Push Json 'element' into the 'json' array. */
 PUBLIC(bool) skJson_array_push_element(skJsonNode *json, skJsonNode *element);
 /* Insert Json 'element' into the 'json' array at 'index'. */
-PUBLIC(bool)
-skJson_array_insert_element(skJsonNode *json, skJsonNode *element,
+PUBLIC(bool) skJson_array_insert_element(skJsonNode *json, skJsonNode *element,
                             size_t index);
 /* Create Json array from array 'strings' of 'count' string values */
-PUBLIC(skJsonNode *)
-skJson_array_from_strings(const char *const *strings, size_t count);
+PUBLIC(skJsonNode *) skJson_array_from_strings(const char *const *strings, size_t count);
 /* Create Json array from array 'strings' of 'count' string reference values */
-PUBLIC(skJsonNode *)
-skJson_array_from_litstrings(const char *const *strings, size_t count);
+PUBLIC(skJsonNode *) skJson_array_from_litstrings(const char *const *strings, size_t count);
 /* Create Json array from array 'integers' of 'count' integer values */
-PUBLIC(skJsonNode *)
-skJson_array_from_integers(const int *integers, size_t count);
+PUBLIC(skJsonNode *) skJson_array_from_integers(const int *integers, size_t count);
 /* Create Json array from array 'doubles' of 'count' double values */
-PUBLIC(skJsonNode *)
-skJson_array_from_doubles(const double *doubles, size_t count);
+PUBLIC(skJsonNode *) skJson_array_from_doubles(const double *doubles, size_t count);
 /* Create Json array from array 'booleans' of 'count' boolean values */
-PUBLIC(skJsonNode *)
-skJson_array_from_booleans(const bool *booleans, size_t count);
+PUBLIC(skJsonNode *) skJson_array_from_booleans(const bool *booleans, size_t count);
 /* Create Json array of 'count' NULL json elements */
 PUBLIC(skJsonNode *) skJson_array_from_nulls(size_t count);
 /* Create Json array from array 'elements' of 'count' Json elements */
-PUBLIC(skJsonNode *)
-skJson_array_from_elements(const skJsonNode *const *elements, size_t count);
+PUBLIC(skJsonNode *) skJson_array_from_elements(const skJsonNode *const *elements, size_t count);
 /* Pop Json element from 'json' array */
 PUBLIC(skJsonNode *) skjson_array_pop(skJsonNode *json);
 /* Remove Json element from 'json' array at 'index' */
@@ -146,18 +132,15 @@ PUBLIC(skJsonNode *) skJson_array_index(skJsonNode *json, size_t index);
 PUBLIC(skJsonNode *) skJson_object_new(void);
 /* Insert Json 'element' into the 'json' object with 'key' as a hash index.
  * In case there is already 'element' with the same 'key' then the old 'element'
- * will get dropped and be replaced with the new 'element', keys stay unchanged.
- */
-PUBLIC(bool)
-skJson_object_insert_element(skJsonNode *json, char *key, skJsonNode *element);
+ * will get dropped and be replaced with the new 'element', keys stay unchanged. */
+PUBLIC(bool) skJson_object_insert_element(skJsonNode *json, char *key, skJsonNode *element);
 /* Removes the Json element associated with the 'key' from the 'json' object */
 PUBLIC(bool) skJson_object_remove_element(skJsonNode *json, char *key);
 /* Returns the Json element associated with the 'key' from the 'json' object */
 PUBLIC(skJsonNode *) skJson_object_get_element(skJsonNode *json, char *key);
 /* Returns the number of Json elements in 'json' object */
 PUBLIC(size_t) skJson_object_len(skJsonNode *json);
-/* Checks if there is a Json element associated with the 'key' in the 'json'
- * object */
+/* Checks if there is a Json element associated with the 'key' in the 'json' object */
 PUBLIC(bool) skJson_object_contains(const skJsonNode *json, const char *key);
 
 #endif
