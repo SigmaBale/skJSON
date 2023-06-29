@@ -35,6 +35,14 @@ struct _skHashCell {
     bool  taken;
 };
 
+struct skTableIter {
+    void*  key;
+    void*  value;
+    skVec* cells;
+    size_t len;
+    size_t index;
+};
+
 struct skHashTable {
     skVec*      storage;
     size_t      len;
@@ -45,11 +53,7 @@ struct skHashTable {
 };
 
 skHashTable*
-skHashTable_new(
-    HashFn      hash_fn,
-    CmpKeyFn    cmp_key,
-    FreeKeyFn   free_key,
-    FreeValueFn free_val)
+skHashTable_new(HashFn hash_fn, CmpKeyFn cmp_key, FreeKeyFn free_key, FreeValueFn free_val)
 {
     skHashTable* table;
     skVec*       storage;
@@ -327,6 +331,95 @@ skHashTable_contains(const skHashTable* table, const void* key)
     }
 
     return (is_null(skHashTable_get(table, key))) ? false : true;
+}
+
+skTableIter*
+skHashTable_into_iter(const skHashTable* table)
+{
+    skHashCell*    current;
+    skTableIter*   iter;
+    skVec*         cells;
+    unsigned char* inner;
+    size_t         len, size, i;
+
+    if(is_null(table)) {
+        return NULL;
+    }
+
+    len   = skHashTable_len(table);
+    cells = skVec_with_capacity(sizeof(skHashCell), len);
+
+    if(is_null(cells)) {
+        return NULL;
+    }
+
+    if(is_null(iter = malloc(sizeof(skTableIter)))) {
+        skVec_drop(cells, NULL);
+        return NULL;
+    }
+
+    size  = skVec_capacity(table->storage);
+    inner = skVec_inner_unsafe(table->storage);
+
+    for(i = 0; i < size; i++) {
+        if((current = (skHashCell*) (inner + (sizeof(skHashCell) * i)))->taken) {
+#ifdef SK_DBUG
+            assert(skVec_push(cells, current));
+#else
+            skVec_push(cells, current);
+#endif
+        }
+    }
+#ifdef SK_DBUG
+    assert(skVec_len(cells) == len);
+#endif
+    iter->cells = cells;
+    iter->len   = len;
+    iter->index = 0;
+    iter->key   = NULL;
+    iter->value = NULL;
+
+    return iter;
+}
+
+skTuple
+skTableIter_next(skTableIter* iter)
+{
+    skHashCell* cell;
+    skTuple     tuple;
+
+    tuple.value = NULL;
+    tuple.key   = NULL;
+
+    if(is_null(iter) || iter->index == iter->len) {
+        return tuple;
+    }
+
+    cell = skVec_index(iter->cells, iter->index++);
+#ifdef SK_DBUG
+    assert(is_some(cell));
+#endif
+    tuple.key   = cell->key;
+    tuple.value = cell->value;
+
+    return tuple;
+}
+
+void
+skTableIter_drop(skTableIter* iter)
+{
+    if(is_null(iter)) {
+        return;
+    }
+
+    if(is_some(iter->cells)) {
+        skVec_drop(iter->cells, NULL);
+    }
+
+    iter->cells = NULL;
+    iter->key   = NULL;
+    iter->value = NULL;
+    iter->len   = 0;
 }
 
 void

@@ -14,6 +14,15 @@ typedef void (*FreeValueFn)(void *);
 
 typedef struct skHashTable skHashTable;
 
+typedef struct skTableIter skTableIter;
+
+typedef struct skTuple skTuple;
+
+struct skTuple {
+  const void *key;
+  const void *value;
+};
+
 skHashTable *skHashTable_new(HashFn hash_fn, CmpKeyFn cmp_key,
                              FreeKeyFn free_key, FreeValueFn free_val);
 
@@ -28,5 +37,11 @@ size_t skHashTable_len(const skHashTable *table);
 bool skHashTable_remove(skHashTable *table, void *key);
 
 void skHashTable_drop(skHashTable *table);
+
+skTableIter *skHashTable_into_iter(const skHashTable *table);
+
+skTuple skTableIter_next(skTableIter *iter);
+
+void skTableIter_drop(skTableIter *iter);
 
 #endif

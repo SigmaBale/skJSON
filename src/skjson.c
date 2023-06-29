@@ -28,11 +28,11 @@ PRIVATE(skJsonNode*) ObjectNode_new(skJsonNode* parent);
 PRIVATE(skJsonNode*) ArrayNode_new(skJsonNode* parent);
 PRIVATE(bool) json_serialize(skJsonNode* json, SBuff* buff);
 PRIVATE(bool) serialize_number(SBuff* buffer, skJsonNode* json);
-PRIVATE(bool) serialize_string(SBuff* buffer, skJsonNode* json);
-PRIVATE(bool) serialize_bool(SBuff* buffer, skJsonNode* json);
+PRIVATE(bool) serialize_string(SBuff* buffer, const char*);
+PRIVATE(bool) serialize_bool(SBuff* buffer, bool boolean);
 PRIVATE(bool) serialize_null(SBuff* buffer);
-PRIVATE(bool) serialize_array(SBuff* buffer, skJsonNode* json);
-PRIVATE(bool) serialize_object(SBuff* buffer, skJsonNode* json);
+PRIVATE(bool) serialize_array(SBuff* buffer, skVec* array);
+PRIVATE(bool) serialize_object(SBuff* buffer, skHashTable* table);
 PRIVATE(void) drop_nonprim_elements(skJsonNode* json);
 PRIVATE(bool) array_push_node_checked(skJsonNode* json, skJsonNode* node);
 
@@ -1391,18 +1391,18 @@ json_serialize(skJsonNode* json, SBuff* sbuf)
     switch(json->type) {
         case SK_STRING_NODE:
         case SK_STRINGLIT_NODE:
-            return serialize_string(sbuf, json);
+            return serialize_string(sbuf, json->data.j_string);
         case SK_INT_NODE:
         case SK_DOUBLE_NODE:
             return serialize_number(sbuf, json);
         case SK_BOOL_NODE:
-            return serialize_bool(sbuf, json);
+            return serialize_bool(sbuf, json->data.j_boolean);
         case SK_NULL_NODE:
             return serialize_null(sbuf);
         case SK_ARRAY_NODE:
-            return serialize_array(sbuf, json);
+            return serialize_array(sbuf, json->data.j_array);
         case SK_OBJECT_NODE:
-            return serialize_object(sbuf, json);
+            return serialize_object(sbuf, json->data.j_object);
         case SK_ERROR_NODE:
         default:
             return false;
@@ -1444,19 +1444,16 @@ serialize_number(SBuff *buffer, skJsonNode* json)
 }
 
 PRIVATE(bool)
-serialize_string(SBuff *buffer, skJsonNode* json)
+serialize_string(SBuff *buffer, const char* str)
 {
 #ifdef SK_DBUG
     assert(is_some(buffer));
     assert(is_some(buffer->buffer));
-    assert(is_some(json));
-    assert(json->type == SK_STRING_NODE || json->type == SK_STRINGLIT_NODE);
 #endif
     unsigned char* out;
-    char* str;
     size_t len;
 
-    len = strlen((str = json->data.j_string)) + sizeof("\"\"");
+    len = strlen(str) + sizeof("\"\"");
     out = SBuff_ensure(buffer, len);
 
     if(is_null(out)) {
@@ -1474,17 +1471,13 @@ serialize_string(SBuff *buffer, skJsonNode* json)
 }
 
 PRIVATE(bool)
-serialize_bool(SBuff *buffer, skJsonNode* json)
+serialize_bool(SBuff *buffer, bool boolean)
 {
 #ifdef SK_DBUG
     assert(is_some(buffer));
     assert(is_some(buffer->buffer));
-    assert(is_some(json));
 #endif
     unsigned char* out;
-    bool boolean;
-
-    boolean = json->data.j_boolean;
 
     if(boolean) {
         out = SBuff_ensure(buffer, 5);
@@ -1528,17 +1521,14 @@ serialize_null(SBuff *buffer)
 }
 
 PRIVATE(bool)
-serialize_array(SBuff *buffer, skJsonNode* json)
+serialize_array(SBuff *buffer, skVec* vec)
 {
 #ifdef SK_DBUG
     assert(is_some(buffer));
     assert(is_some(buffer->buffer));
-    assert(is_some(json));
-    assert(json->type == SK_ARRAY_NODE);
 #endif
 
     unsigned char* out;
-    skVec* vec;
     size_t len, i;
     skJsonNode* current;
 
@@ -1550,7 +1540,6 @@ serialize_array(SBuff *buffer, skJsonNode* json)
     buffer->offset++;
     buffer->depth++;
 
-    vec = json->data.j_array;
     len = skVec_len(vec);
 
     for(i = 0; i < len; i++) {
@@ -1585,19 +1574,17 @@ serialize_array(SBuff *buffer, skJsonNode* json)
 }
 
 PRIVATE(bool)
-serialize_object(SBuff* buff, skJsonNode* json)
+serialize_object(SBuff* buff, skHashTable* table)
 {
 #ifdef SK_DBUG
     assert(is_some(buff));
     assert(is_some(buff->buffer));
-    assert(is_some(json));
-    assert(json->type == SK_OBJECT_NODE);
 #endif
 
     unsigned char* out;
-    skHashTable* table;
-    size_t len, i;
-    skJsonNode* current;
+    skTableIter* iter;
+    skTuple tuple;
+    size_t i;
 
     if(is_null(out = SBuff_ensure(buff, 1))) {
         return false;
@@ -1607,10 +1594,12 @@ serialize_object(SBuff* buff, skJsonNode* json)
     buff->offset++;
     buff->depth++;
 
-    table = json->data.j_object;
-    len = skHashTable_len(table);
+    if(is_null(iter = skHashTable_into_iter(table))) {
+        SBuff_drop(buff);
+        return false;
+    }
 
-    for(i = 0; i < len; i++) {
+    while((tuple = skTableIter_next(iter)).key != NULL) {
 
     }
 }
