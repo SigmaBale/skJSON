@@ -6,38 +6,51 @@
 
 typedef struct skVec skVec;
 
+typedef int (*CmpFn)(const void *, const void *);
+
 typedef void (*FreeFn)(void *);
 
-skVec *skVec_new(size_t ele_size);
+skVec *skVec_new(const size_t ele_size);
 
-skVec *skVec_with_capacity(size_t ele_size, size_t capacity);
+skVec *skVec_with_capacity(const size_t ele_size, const size_t capacity);
 
-bool skVec_push(skVec *vec, void *element);
+bool skVec_push(skVec *vec, const void *element);
 
 void *skVec_pop(skVec *vec);
 
-size_t skVec_len(skVec *vec);
+size_t skVec_len(const skVec *vec);
 
-size_t skVec_capacity(skVec *vec);
+size_t skVec_capacity(const skVec *vec);
 
-size_t skVec_element_size(skVec *vec);
+size_t skVec_element_size(const skVec *vec);
+
+bool skVec_contains(const skVec* vec, const void* key, CmpFn cmp, bool sorted);
+
+void *skVec_get_by_key(const skVec *vec, const void *key, CmpFn cmp,
+                       bool sorted);
+
+bool skVec_remove_by_key(skVec *vec, const void *key, CmpFn cmp, FreeFn free_fn,
+                         bool sorted);
+
+bool skVec_sort(skVec *vec, CmpFn cmp);
 
 void skVec_drop(skVec *vec, FreeFn free_fn);
 
-void *skVec_index(skVec *vec, size_t index);
+void *skVec_index(const skVec *vec, const size_t index);
 
-void *skVec_front(skVec *vec);
+void *skVec_front(const skVec *vec);
 
-void *skVec_inner_unsafe(skVec *vec);
+void *skVec_inner_unsafe(const skVec *vec);
 
-void *skVec_back(skVec *vec);
+void *skVec_back(const skVec *vec);
 
-bool skVec_insert_non_contiguous(skVec *vec, void *element, size_t index);
+bool skVec_insert_non_contiguous(skVec *vec, const void *element,
+                                 const size_t index);
 
-void *skVec_index_unsafe(skVec *vec, size_t index);
+void *skVec_index_unsafe(const skVec *vec, const size_t index);
 
-bool skVec_insert(skVec *vec, void *element, size_t index);
+bool skVec_insert(skVec *vec, const void *element, const size_t index);
 
-bool skVec_remove(skVec *vec, size_t index, FreeFn free_fn);
+bool skVec_remove(skVec *vec, const size_t index, FreeFn free_fn);
 
 #endif

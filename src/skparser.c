@@ -9,7 +9,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-bool                skJsonString_isvalid(const skStrSlice* slice);
 static skJsonString skJsonString_new_internal(skStrSlice* slice);
 static skJsonNode*  skparse_json_object(skScanner* scanner, skJsonNode* parent);
 static skJsonNode*  skparse_json_array(skScanner* scanner, skJsonNode* parent);
@@ -19,7 +18,7 @@ static skJsonNode*  skparse_json_bool(skScanner* scanner, skJsonNode* parent);
 static skJsonNode*  skparse_json_null(skScanner* scanner, skJsonNode* parent);
 
 skJsonNode*
-skJsonNode_new(skScanner* scanner, skJsonNode* parent)
+skJsonNode_parse(skScanner* scanner, skJsonNode* parent)
 {
     skToken next;
 
@@ -43,7 +42,7 @@ skJsonNode_new(skScanner* scanner, skJsonNode* parent)
             return skparse_json_null(scanner, parent);
         case SK_INVALID:
         default:
-            return skJsonError_new(
+            return ErrorNode_new(
                 "Invalid syntax/token while parsing",
                 scanner->iter.state,
                 parent);
@@ -53,26 +52,23 @@ skJsonNode_new(skScanner* scanner, skJsonNode* parent)
 skJsonNode*
 skparse_json_object(skScanner* scanner, skJsonNode* parent)
 {
-    skJsonNode*  object_node;
-    skHashTable* table;
-    skJsonString key;
-    skJsonNode*  value;
-    skToken      token;
-    bool         err;   /* Error flag */
-    bool         start; /* First iteration flag */
+    skJsonNode*   object_node;
+    skObjectTuple tuple;
+    skJsonNode*   value;
+    skToken       token;
+    skVec*        table;
+    bool          err;   /* Error flag */
+    bool          start; /* First iteration flag */
 
     err   = false;
     start = true;
 
-    object_node = skJsonObject_new(parent);
+    object_node = ObjectNode_new(parent);
     if(is_null(object_node)) {
         return NULL;
     }
 
-    /* Table components */
     table = object_node->data.j_object;
-    key   = NULL;
-    value = NULL;
 
     /* Take the first token after '{' */
     token = skScanner_next(scanner);
@@ -95,8 +91,8 @@ skparse_json_object(skScanner* scanner, skJsonNode* parent)
         if((token = skScanner_peek(scanner)).type == SK_STRING) {
 
             /* Parse the key */
-            key = skJsonString_new_internal(&token.lexeme);
-            if(is_null(key)) {
+            tuple.key = skJsonString_new_internal(&token.lexeme);
+            if(is_null(tuple.key)) {
                 return NULL;
             } else {
                 skScanner_next(scanner);
@@ -106,7 +102,7 @@ skparse_json_object(skScanner* scanner, skJsonNode* parent)
 
             /* We must have ':' */
             if(skScanner_peek(scanner).type != SK_COLON) {
-                free(key);
+                free(tuple.key);
                 err = true;
                 break;
             } else {
@@ -116,27 +112,30 @@ skparse_json_object(skScanner* scanner, skJsonNode* parent)
             skScanner_skip(scanner, 1, SK_WS);
 
             /* Parse the value */
-            value = skJsonNode_new(scanner, object_node);
+            value = skJsonNode_parse(scanner, object_node);
 
             if(is_null(value)) {
-                free(key);
+                free(tuple.key);
                 skJsonNode_drop(object_node);
                 return NULL;
             }
 
             if(value->type == SK_ERROR_NODE) {
-                free(key);
+                free(tuple.key);
                 err = true;
                 break;
             }
+
+            memcpy(&tuple.value, value, sizeof(skJsonNode));
+            tuple.value.index = skVec_len(table);
+
         } else {
             err = true;
             break;
         }
 
-        if(!skHashTable_insert(table, key, value)) {
-            free(key);
-            skJsonNode_drop(value);
+        if(!skVec_push(table, &tuple)) {
+            skObjectTuple_drop(&tuple);
             skJsonNode_drop(object_node);
             return NULL;
         }
@@ -153,10 +152,7 @@ skparse_json_object(skScanner* scanner, skJsonNode* parent)
         if(value->type == SK_ERROR_NODE) {
             return value;
         } else {
-            return skJsonError_new(
-                "failed parsing json object",
-                scanner->iter.state,
-                parent);
+            return ErrorNode_new("failed parsing json object", scanner->iter.state, parent);
         }
     } else {
         skScanner_next(scanner);
@@ -182,7 +178,7 @@ skparse_json_array(skScanner* scanner, skJsonNode* parent)
     token    = skScanner_next(scanner);
     temp     = NULL;
 
-    array_node = skJsonArray_new(parent);
+    array_node = ArrayNode_new(parent);
     if(is_null(array_node)) {
         return NULL;
     }
@@ -204,7 +200,7 @@ skparse_json_array(skScanner* scanner, skJsonNode* parent)
         }
 
         /* Parse the array node/value */
-        temp = skJsonNode_new(scanner, array_node);
+        temp = skJsonNode_parse(scanner, array_node);
         if(is_null(temp)) {
             skJsonNode_drop(array_node);
             return NULL;
@@ -237,10 +233,7 @@ skparse_json_array(skScanner* scanner, skJsonNode* parent)
         if(temp_err) {
             return temp;
         } else {
-            return skJsonError_new(
-                "failed parsing json array",
-                scanner->iter.state,
-                parent);
+            return ErrorNode_new("failed parsing json array", scanner->iter.state, parent);
         }
     } else {
         skScanner_next(scanner);
@@ -341,13 +334,13 @@ skparse_json_string(skScanner* scanner, skJsonNode* parent)
     jstring = skJsonString_new_internal(&token.lexeme);
 
     if(is_null(jstring)) {
-        return skJsonError_new("failed parsing Json String", scanner->iter.state, parent);
+        return ErrorNode_new("failed parsing Json String", scanner->iter.state, parent);
     } else {
         skScanner_next(scanner);
     }
 
     /* Return valid Json String (null terminated) */
-    return skJsonString_new(jstring, parent);
+    return StringNode_new(jstring, SK_STRING_NODE, parent);
 }
 
 skJsonNode*
@@ -445,53 +438,17 @@ skparse_json_number(skScanner* scanner, skJsonNode* parent)
         if(errno == ERANGE) {
             THROW_WARN(OverflowDetected, scanner);
         }
-        return skJsonDouble_new(dbl, parent);
+        return DoubleNode_new(dbl, parent);
     } else {
         integ = strtol(start, &end, 10);
         if(errno == ERANGE) {
             THROW_WARN(OverflowDetected, scanner);
         }
-        return skJsonInteger_new(integ, parent);
+        return IntNode_new(integ, parent);
     }
 
 jmp_err:
-    return skJsonError_new("failed to parse Json Number", scanner->iter.state, parent);
-}
-
-void
-print_node(skJsonNode* node)
-{
-    if(node == NULL) {
-        printf("NO PARENT\n");
-        return;
-    }
-    switch(node->type) {
-        case SK_ERROR_NODE:
-            printf("ERROR NODE: %s\n", node->data.j_err);
-            break;
-        case SK_OBJECT_NODE:
-            printf("OBJECT NODE -> len: %lu\n", skHashTable_len(node->data.j_object));
-            break;
-        case SK_ARRAY_NODE:
-            printf("ARRAY NODE -> len: %lu\n", skVec_len(node->data.j_array));
-            break;
-        case SK_STRING_NODE:
-        case SK_STRINGLIT_NODE:
-            printf("STRING NODE -> '%s'\n", node->data.j_string);
-            break;
-        case SK_INT_NODE:
-            printf("INT NODE: %ld\n", node->data.j_int);
-            break;
-        case SK_DOUBLE_NODE:
-            printf("DOUBLE NODE: %f\n", node->data.j_double);
-            break;
-        case SK_BOOL_NODE:
-            printf("BOOL NODE: %s\n", (node->data.j_boolean) ? "true" : "false");
-            break;
-        case SK_NULL_NODE:
-            printf("NULL NODE\n");
-            break;
-    }
+    return ErrorNode_new("failed to parse Json Number", scanner->iter.state, parent);
 }
 
 skJsonNode*
@@ -504,10 +461,10 @@ skparse_json_bool(skScanner* scanner, skJsonNode* parent)
 
     if(token.type == SK_TRUE) {
         skScanner_next(scanner);
-        return skJsonBool_new(true, parent);
+        return BoolNode_new(true, parent);
     } else {
         skScanner_next(scanner);
-        return skJsonBool_new(false, parent);
+        return BoolNode_new(false, parent);
     }
 }
 
@@ -515,5 +472,5 @@ skJsonNode*
 skparse_json_null(skScanner* scanner, skJsonNode* parent)
 {
     skScanner_next(scanner);
-    return skJsonNull_new(parent);
+    return RawNode_new(SK_NULL_NODE, parent);
 }

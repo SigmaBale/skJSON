@@ -14,7 +14,8 @@
 #define WRONG_NT_ERR " wrong node type"
 #define INVALID_STR_ERR " invalid json string"
 #define INVALID_VAL_ERR " invalid value provided"
-#define SERIALIZER_ERR " serializer error"
+#define SERIALIZER_NUMBER_ERR " errored while serializing number"
+#define SERIALIZER_INVALID_JSON_ERR " trying to serialize invalid json element"
 
 /* Warnings text */
 #define OVERFLOW_WARN " detected overflow"
@@ -31,7 +32,8 @@ enum {
   WrongNodeType = 8,
   InvalidString = 9,
   InvalidValue = 10,
-  SerializerError = 11,
+  SerializerNumberError = 11,
+  SerializerInvalidJson = 12
 };
 
 /* Possible Warnings */
@@ -78,8 +80,11 @@ enum { OverflowDetected = 128 };
     case InvalidValue:                                                         \
       errmsg = filename ":" STRINGIFY(line) INVALID_VAL_ERR;                   \
       break;                                                                   \
-    case SerializerError:                                                      \
-      errmsg = filename ":" STRINGIFY(line) SERIALIZER_ERR;                    \
+    case SerializerNumberError:                                                \
+      errmsg = filename ":" STRINGIFY(line) SERIALIZER_NUMBER_ERR;             \
+      break;                                                                   \
+    case SerializerInvalidJson:                                                \
+      errmsg = filename ":" STRINGIFY(line) SERIALIZER_INVALID_JSON_ERR;       \
       break;                                                                   \
     }                                                                          \
     SK_PRINT_ERR(errmsg);                                                      \

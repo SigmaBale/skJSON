@@ -6,6 +6,8 @@
 #include <memory.h>
 #include <stdlib.h>
 
+static void* _skVec_get(const skVec* vec, const size_t index);
+
 struct skVec {
     unsigned char* allocation;
     size_t         ele_size;
@@ -14,7 +16,7 @@ struct skVec {
 };
 
 skVec*
-skVec_new(size_t ele_size)
+skVec_new(const size_t ele_size)
 {
     skVec* vec;
 
@@ -33,7 +35,7 @@ skVec_new(size_t ele_size)
 }
 
 skVec*
-skVec_with_capacity(size_t ele_size, size_t capacity)
+skVec_with_capacity(const size_t ele_size, const size_t capacity)
 {
     skVec* vec;
     void*  allocation;
@@ -83,14 +85,14 @@ _skVec_maybe_grow(skVec* vec)
     return 0;
 }
 
-void*
-_skVec_get(skVec* vec, size_t index)
+static void*
+_skVec_get(const skVec* vec, const size_t index)
 {
     return (vec->allocation + (index * vec->ele_size));
 }
 
 void*
-skVec_index_unsafe(skVec* vec, size_t index)
+skVec_index_unsafe(const skVec* vec, const size_t index)
 {
     if(is_null(vec)) {
         return NULL;
@@ -105,7 +107,7 @@ skVec_index_unsafe(skVec* vec, size_t index)
 }
 
 bool
-skVec_insert_non_contiguous(skVec* vec, void* element, size_t index)
+skVec_insert_non_contiguous(skVec* vec, const void* element, const size_t index)
 {
     void* hole;
 
@@ -125,7 +127,7 @@ skVec_insert_non_contiguous(skVec* vec, void* element, size_t index)
 }
 
 void*
-skVec_front(skVec* vec)
+skVec_front(const skVec* vec)
 {
     if(is_null(vec) || vec->len == 0) {
         return NULL;
@@ -135,7 +137,7 @@ skVec_front(skVec* vec)
 }
 
 void*
-skVec_inner_unsafe(skVec* vec)
+skVec_inner_unsafe(const skVec* vec)
 {
     if(is_null(vec)) {
         return NULL;
@@ -144,7 +146,7 @@ skVec_inner_unsafe(skVec* vec)
 }
 
 void*
-skVec_back(skVec* vec)
+skVec_back(const skVec* vec)
 {
     if(is_null(vec) || vec->len == 0) {
         return NULL;
@@ -154,7 +156,7 @@ skVec_back(skVec* vec)
 }
 
 bool
-skVec_push(skVec* vec, void* element)
+skVec_push(skVec* vec, const void* element)
 {
     if(is_null(vec)) {
         return false;
@@ -170,8 +172,89 @@ skVec_push(skVec* vec, void* element)
     return true;
 }
 
+bool
+skVec_contains(const skVec* vec, const void* key, CmpFn cmp, bool sorted)
+{
+    return is_some(skVec_get_by_key(vec, key, cmp, sorted));
+}
+
 void*
-skVec_index(skVec* vec, size_t index)
+skVec_get_by_key(const skVec* vec, const void* key, CmpFn cmp, bool sorted)
+{
+    void*  current;
+    size_t size, idx;
+
+    if(is_null(vec) || is_null(key)) {
+        return NULL;
+    }
+
+    if(sorted) {
+        current = bsearch(key, vec->allocation, vec->len, vec->ele_size, cmp);
+        return (is_some(current)) ? current : NULL;
+    } else {
+        size = vec->len;
+        while(size--) {
+            current = _skVec_get(vec, size);
+            if(cmp(current, key) == 0) {
+                return current;
+            }
+        }
+    }
+
+    return NULL;
+}
+
+bool
+skVec_sort(skVec* vec, CmpFn cmp)
+{
+    if(is_null(vec)) {
+        return false;
+    }
+
+    if(is_null(cmp)) {
+        THROW_ERR(MissingComparisonFn);
+        return false;
+    }
+
+    qsort(vec->allocation, vec->len, vec->ele_size, cmp);
+    return true;
+}
+
+bool
+skVec_remove_by_key(skVec* vec, const void* key, CmpFn cmp, FreeFn free_fn, bool sorted)
+{
+    void*  current;
+    size_t size, idx;
+
+    if(is_null(vec) || is_null(key) || is_null(cmp)) {
+        return false;
+    }
+
+    if(is_null(cmp)) {
+        THROW_ERR(MissingComparisonFn);
+        return false;
+    }
+
+    if(sorted) {
+        current = bsearch(key, vec->allocation, vec->len, vec->ele_size, cmp);
+        if(is_some(current)) {
+            idx = ((unsigned char*) current - vec->allocation) / vec->ele_size;
+            return skVec_remove(vec, idx, free_fn);
+        }
+    } else {
+        while(size--) {
+            current = _skVec_get(vec, size);
+            if(cmp(current, key) == 0) {
+                return skVec_remove(vec, size, free_fn);
+            }
+        }
+    }
+
+    return false;
+}
+
+void*
+skVec_index(const skVec* vec, const size_t index)
 {
     if(is_null(vec)) {
         return NULL;
@@ -205,7 +288,7 @@ skVec_pop(skVec* vec)
 }
 
 size_t
-skVec_len(skVec* vec)
+skVec_len(const skVec* vec)
 {
     if(is_null(vec)) {
         return 0;
@@ -214,7 +297,7 @@ skVec_len(skVec* vec)
 }
 
 size_t
-skVec_capacity(skVec* vec)
+skVec_capacity(const skVec* vec)
 {
     if(is_null(vec)) {
         return 0;
@@ -223,7 +306,7 @@ skVec_capacity(skVec* vec)
 }
 
 size_t
-skVec_element_size(skVec* vec)
+skVec_element_size(const skVec* vec)
 {
     if(is_null(vec)) {
         return 0;
@@ -232,7 +315,7 @@ skVec_element_size(skVec* vec)
 }
 
 bool
-skVec_insert(skVec* vec, void* element, size_t index)
+skVec_insert(skVec* vec, const void* element, const size_t index)
 {
     unsigned char* hole;
     size_t         elsize;
@@ -267,7 +350,7 @@ skVec_insert(skVec* vec, void* element, size_t index)
 }
 
 bool
-skVec_remove(skVec* vec, size_t index, FreeFn free_fn)
+skVec_remove(skVec* vec, const size_t index, FreeFn free_fn)
 {
     unsigned char* hole;
     size_t         elsize;

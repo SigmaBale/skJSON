@@ -10,8 +10,13 @@
 
 /* Opaque type representing the Json Element */
 typedef skJsonNode skJson;
-/* Parse the Json tree from 'buff' of size 'bufsize' */
+/* Parse the Json from 'buff' of size 'bufsize'.
+ * If parsing error occured it returns Error Json element which contains error info aka
+ * string describing the error and position where it occured. */
 PUBLIC(skJson *) skJson_parse(char *buff, size_t bufsize);
+/* Returns null-terminated char array describing the error occured during parsing if 'json' 
+ * is of type 'SK_JSERR', otherwise return NULL. */
+PUBLIC(char*) skJson_error(skJson *json);
 /* Return 'json' element type */
 PUBLIC(unsigned int) skJson_type(skJsonNode *json);
 /* Return the parent element of 'json' element */
@@ -36,6 +41,24 @@ PUBLIC(skJsonNode *) skJson_transform_into_string(skJsonNode *json, const char *
 PUBLIC(skJsonNode *) skJson_transform_into_empty_array(skJsonNode *json);
 /* Transforms the 'json' element into empty Json Object element */
 PUBLIC(skJsonNode *) skJson_transform_into_empty_object(skJsonNode *json);
+/* Serializes the 'json' element into null terminated string saving as much space as possible.
+ * Returns NULL on failure or pointer to the serialized json on success.
+ * On failure serialization buffer is destroyed. */
+PUBLIC(unsigned char*) skJson_serialize(skJsonNode* json);
+/* Serializes the 'json' element into null terminated string using buffer of size 'n',
+ * instead of using default buffer size 'BUFSIZ'.
+ * If 'expand' is set it will expand the buffer each time it requires more space,
+ * otherwise if the flag is not set and buffer tries to expand, it will instead fail serialization.
+ * Returns NULL on failure or pointer to the serialized json on success.
+ * On failure serialization buffer is destroyed. */
+PUBLIC(unsigned char*) skJson_serialize_with_bufsize(skJsonNode* json, size_t n, bool expand);
+/* Serializes the 'json' element into null terminated string using already allocated
+ * 'buffer' of size 'n'. If 'expand' is set it will expand the buffer each time it
+ * requires more space, otherwise if the flag is not set and buffer tries to expand, it
+ * will instead fail serialization. Returns NULL on failure or pointer to the serialized 
+ * json on success.
+ * On failure the passed in 'buffer' won't be destroyed, it is on user to manage that memory. */
+PUBLIC(unsigned char*) skJson_serialize_with_buffer(skJsonNode* json, unsigned char* buffer, size_t size, bool expand);
 
 /* Create integer Json element from integer 'n'. */
 PUBLIC(skJsonNode *) skJson_integer_new(long int n);
@@ -99,8 +122,7 @@ PUBLIC(bool) skJson_array_insert_null(skJsonNode *json, size_t index);
 /* Push Json 'element' into the 'json' array. */
 PUBLIC(bool) skJson_array_push_element(skJsonNode *json, skJsonNode *element);
 /* Insert Json 'element' into the 'json' array at 'index'. */
-PUBLIC(bool) skJson_array_insert_element(skJsonNode *json, skJsonNode *element,
-                            size_t index);
+PUBLIC(bool) skJson_array_insert_element(skJsonNode *json, skJsonNode *element, size_t index);
 /* Create Json array from array 'strings' of 'count' string values */
 PUBLIC(skJsonNode *) skJson_array_from_strings(const char *const *strings, size_t count);
 /* Create Json array from array 'strings' of 'count' string reference values */
@@ -130,17 +152,39 @@ PUBLIC(skJsonNode *) skJson_array_index(skJsonNode *json, size_t index);
 
 /* Create an empty Json object */
 PUBLIC(skJsonNode *) skJson_object_new(void);
-/* Insert Json 'element' into the 'json' object with 'key' as a hash index.
- * In case there is already 'element' with the same 'key' then the old 'element'
- * will get dropped and be replaced with the new 'element', keys stay unchanged. */
-PUBLIC(bool) skJson_object_insert_element(skJsonNode *json, char *key, skJsonNode *element);
-/* Removes the Json element associated with the 'key' from the 'json' object */
-PUBLIC(bool) skJson_object_remove_element(skJsonNode *json, char *key);
-/* Returns the Json element associated with the 'key' from the 'json' object */
-PUBLIC(skJsonNode *) skJson_object_get_element(skJsonNode *json, char *key);
+/* Sorts the 'json' object elements by its keys in ascending order using qsort.
+ * This marks the json object as sorted, further insertions/removals mark the object as unsorted. */
+PUBLIC(bool) skJson_object_sort_ascending(skJsonNode* json);
+/* Sorts the 'json' object elements by its keys in descending order using qsort.
+ * This marks the json object as sorted, further insertions/removals mark the object as unsorted. */
+PUBLIC(bool) skJson_object_sort_descending(skJsonNode* json);
+/* Insert 'key' and json element into 'json' object at 'index', element behind the
+ * 'elementp' is immediatly nulled and destroyed upon successfull insertion, this is by
+ * the design because it is not part of the 'json' object, if inserting fails element is
+ * not destroyed and pointer is not nulled. */
+PUBLIC(bool) skJson_object_insert_element(skJsonNode *json, const char *key, skJsonNode **elementp, size_t index);
+/* Remove json element from 'json' object at 'index'. Return true upon success otherwise false. */
+PUBLIC(bool) skJson_object_remove_element(skJsonNode *json, size_t index);
+/* Remove element by 'key', if the 'json' object is sorted and 'sorted' is set, search is done using binary
+ * search, otherwise key comparison is done using linear search. If keys are sorted in
+ * descnedning order then 'descending' must be set. If the object is not sorted and calle
+ * sets the 'sorted' then the search is undefined. */
+PUBLIC(bool) skJson_object_remove_element_by_key(skJsonNode* json, const char* key, bool sorted, bool descending);
+/* Get element from 'json' object at 'index'. Returns NULL if element was not found, or 
+ * isnput arguments are invalid. */ 
+PUBLIC(skJsonNode *) skJson_object_get_element(const skJsonNode *json, size_t index);
+/* Get element associated with the 'key' from the 'json' object.
+ * Searching is done using binary search if object is sorted, otherwise linear search is used.
+ * Return NULL if element was not found or input arguments are invalid. */
+PUBLIC(skJsonNode*) skJson_object_get_element_by_key(
+        const skJsonNode* json,
+        const char* key,
+        bool sorted,
+        bool descending);
 /* Returns the number of Json elements in 'json' object */
-PUBLIC(size_t) skJson_object_len(skJsonNode *json);
-/* Checks if there is a Json element associated with the 'key' in the 'json' object */
+PUBLIC(size_t) skJson_object_len(const skJsonNode *json);
+/* Checks if there is a Json element associated with the 'key' in the 'json' object.
+ * Comparison function used is 'strcmp' (case sensitive). */
 PUBLIC(bool) skJson_object_contains(const skJsonNode *json, const char *key);
 
 #endif

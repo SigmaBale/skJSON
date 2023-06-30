@@ -17,30 +17,27 @@
 /* Check if the node is 'valid_with_type' and has no parent */
 #define can_be_inserted(node, type) (valid_with_type((node), (type)) && (node)->parent == NULL)
 
-typedef struct _SBuff SBuff;
+typedef struct _Serializer Serializer;
 
-PRIVATE(skJsonNode*) RawNode_new(skNodeType type, skJsonNode* parent);
-PRIVATE(skJsonNode*) IntNode_new(long int n, skJsonNode* parent);
-PRIVATE(skJsonNode*) DoubleNode_new(double n, skJsonNode* parent);
-PRIVATE(skJsonNode*) BoolNode_new(bool b, skJsonNode* parent);
-PRIVATE(skJsonNode*) StringNode_new(const char* string, skNodeType type);
-PRIVATE(skJsonNode*) ObjectNode_new(skJsonNode* parent);
-PRIVATE(skJsonNode*) ArrayNode_new(skJsonNode* parent);
-PRIVATE(bool) json_serialize(skJsonNode* json, SBuff* buff);
-PRIVATE(bool) serialize_number(SBuff* buffer, skJsonNode* json);
-PRIVATE(bool) serialize_string(SBuff* buffer, const char*);
-PRIVATE(bool) serialize_bool(SBuff* buffer, bool boolean);
-PRIVATE(bool) serialize_null(SBuff* buffer);
-PRIVATE(bool) serialize_array(SBuff* buffer, skVec* array);
-PRIVATE(bool) serialize_object(SBuff* buffer, skHashTable* table);
+PRIVATE(bool) Serializer_serialize(Serializer* serializer, skJsonNode* json);
+PRIVATE(bool) Serializer_serialize_number(Serializer* serializer, skJsonNode* json);
+PRIVATE(bool) Serializer_serialize_string(Serializer* serializer, const char*);
+PRIVATE(bool) Serializer_serialize_bool(Serializer* serializer, bool boolean);
+PRIVATE(bool) Serializer_serialize_null(Serializer* serializer);
+PRIVATE(bool) Serializer_serialize_array(Serializer* serializer, skVec* array);
+PRIVATE(bool) Serializer_serialize_object(Serializer* serializer, skVec* table);
 PRIVATE(void) drop_nonprim_elements(skJsonNode* json);
 PRIVATE(bool) array_push_node_checked(skJsonNode* json, skJsonNode* node);
+PRIVATE(int) cmp_objtuples(skObjectTuple* tupleA, skObjectTuple* tupleB);
+PRIVATE(int) cmp_objtuples_descending(skObjectTuple* tupleA, skObjectTuple* tupleB);
 
-struct _SBuff {
+struct _Serializer {
     unsigned char* buffer;
     size_t         length;
     size_t         offset;
     size_t         depth;
+    bool           expand;
+    bool           user_provided;
 };
 
 /* clang-format off */
@@ -64,7 +61,7 @@ skJson_parse(char* buff, size_t bufsize)
     }
 
     /* Construct the parse tree */
-    json = skJsonNode_new(scanner, NULL);
+    json = skJsonNode_parse(scanner, NULL);
 
     /* We are done scanning */
     free(scanner);
@@ -74,6 +71,16 @@ skJson_parse(char* buff, size_t bufsize)
     }
 
     return json;
+}
+
+PUBLIC(char*) skJson_error(skJson *json)
+{
+    if(valid_with_type(json, SK_ERROR_NODE)) {
+        return json->data.j_err;
+    } else {
+        THROW_ERR(WrongNodeType);
+        return NULL;
+    }
 }
 
 /* Drop the 'json' freeing all of its child elements */
@@ -157,7 +164,7 @@ drop_nonprim_elements(skJsonNode* json) {
             skVec_drop(json->data.j_array, (FreeFn) skJsonNode_drop);
             break;
         case SK_OBJECT_NODE:
-            skHashTable_drop(json->data.j_object);
+            skVec_drop(json->data.j_object, (FreeFn) skObjectTuple_drop);
             break;
         default:
             break;
@@ -297,27 +304,21 @@ skJson_transform_into_empty_array(skJsonNode* json)
 PUBLIC(skJsonNode*)
 skJson_transform_into_empty_object(skJsonNode* json)
 {
-    skHashTable* object;
+    skVec* table;
 
     if(is_null(json)) {
         THROW_ERR(WrongNodeType);
         return NULL;
     }
 
-    object = skHashTable_new(
-            (HashFn) NULL,
-            (CmpKeyFn) strcmp,
-            (FreeKeyFn) free,
-            (FreeValueFn) skJsonNode_drop);
-
-    if(is_null(object)) {
+    if(is_null(table = skVec_new(sizeof(skJsonNode)))) {
         return NULL;
     }
 
     drop_nonprim_elements(json);
 
-    json->data.j_object = object;
-    json->type = SK_ARRAY_NODE;
+    json->data.j_object = table;
+    json->type = SK_OBJECT_NODE;
 
     return json;
 }
@@ -325,20 +326,6 @@ skJson_transform_into_empty_object(skJsonNode* json)
 PUBLIC(skJsonNode*)
 skJson_integer_new(long int n) {
     return IntNode_new(n, NULL);
-}
-
-PRIVATE(skJsonNode*)
-IntNode_new(long int n, skJsonNode* parent)
-{
-    skJsonNode* int_node;
-
-    int_node = RawNode_new(SK_INT_NODE, parent);
-    if(is_null(int_node)) {
-        return NULL;
-    }
-
-    int_node->data.j_int = n;
-    return int_node;
 }
 
 PUBLIC(bool)
@@ -359,20 +346,6 @@ skJson_double_new(double n)
     return DoubleNode_new(n, NULL);
 }
 
-PRIVATE(skJsonNode*)
-DoubleNode_new(double n, skJsonNode* parent)
-{
-    skJsonNode* double_node;
-
-    double_node = RawNode_new(SK_DOUBLE_NODE, parent);
-    if(is_null(double_node)) {
-        return NULL;
-    }
-
-    double_node->data.j_double = n;
-    return double_node;
-}
-
 PUBLIC(bool)
 skJson_double_set(skJsonNode* json, double n)
 {
@@ -389,20 +362,6 @@ PUBLIC(skJsonNode*)
 skJson_bool_new(bool boolean)
 {
     return BoolNode_new(boolean, NULL);
-}
-
-PRIVATE(skJsonNode*)
-BoolNode_new(bool b, skJsonNode* parent)
-{
-    skJsonNode* bool_node;
-
-    bool_node = RawNode_new(SK_BOOL_NODE, parent);
-    if(is_null(bool_node)) {
-        return NULL;
-    }
-
-    bool_node->data.j_boolean = b;
-    return bool_node;
 }
 
 PUBLIC(bool)
@@ -422,30 +381,10 @@ skJson_null_new(void) {
     return RawNode_new(SK_NULL_NODE, NULL);
 }
 
-PRIVATE(skJsonNode*)
-RawNode_new(skNodeType type, skJsonNode* parent)
-{
-    skJsonNode* raw_node;
-
-    raw_node = malloc(sizeof(skJsonNode));
-    if(is_null(raw_node)) {
-        THROW_ERR(OutOfMemory);
-        return NULL;
-    }
-
-    raw_node->type   = type;
-    raw_node->parent = parent;
-    raw_node->index  = 0;
-
-    return raw_node;
-}
-
-/* Try creating a valid Json String from 'string' that holds the newly allocated
- * duplicated string */
 PUBLIC(skJsonNode*)
 skJson_string_new(const char* string)
 {
-    return StringNode_new(string, SK_STRING_NODE);
+    return StringNode_new(discard_const(string), SK_STRING_NODE, NULL);
 }
 
 PUBLIC(bool)
@@ -477,46 +416,19 @@ skJson_string_set(skJsonNode* json, const char* string)
     return true;
 }
 
-/* Try creating a valid Json String from 'string' that holds the reference to it */
 PUBLIC(skJsonNode*)
 skJson_stringlit_new(const char* string)
 {
-    return StringNode_new(string, SK_STRINGLIT_NODE);
-}
-
-/* Check validity and construct the valid Json string from 'string' of type 'type' */
-PRIVATE(skJsonNode*)
-StringNode_new(const char* string, skNodeType type)
-{
-    skJsonNode* string_node;
     skStrSlice  slice;
-    char*       dup_str;
 
-    /* Take range up to the null-terminator */
     slice = skSlice_new(string, strlen(string) - 1);
 
-    /* Check if string is valid json string */
     if(!skJsonString_isvalid(&slice)) {
         THROW_ERR(InvalidString);
         return NULL;
     }
 
-    /* If type is not a reference string then duplicate it */
-    if(type == SK_STRING_NODE && is_null(dup_str = strdup_ansi(string))) {
-        return NULL;
-    } else {
-        dup_str = discard_const(string);
-    }
-
-    /* Create a node */
-    string_node = RawNode_new(type, NULL);
-    if(is_null(string_node)) {
-        return NULL;
-    }
-
-    /* Store the 'dup_str' into the node */
-    string_node->data.j_string = dup_str;
-    return string_node;
+    return StringNode_new(discard_const(string), SK_STRINGLIT_NODE, NULL);
 }
 
 PUBLIC(bool)
@@ -547,28 +459,6 @@ skJson_array_new(void)
     return ArrayNode_new(NULL);
 }
 
-PRIVATE(skJsonNode*)
-ArrayNode_new(skJsonNode* parent)
-{
-    skJsonNode* array_node;
-    skVec* array;
-
-    if(is_null(array_node = RawNode_new(SK_ARRAY_NODE, parent))) {
-        return NULL;
-    }
-
-    array = array_node->data.j_array;
-
-    if(is_null(array = skVec_new(sizeof(skJsonNode)))) {
-        free(array_node);
-        return NULL;
-    }
-
-    return array_node;
-}
-
-/* Push the 'string' into the 'json', 'string' being valid Json String and
- * 'json' being the valid Json Array */
 PUBLIC(bool)
 skJson_array_push_str(skJsonNode* json, const char* string)
 {
@@ -602,8 +492,6 @@ skJson_array_push_str(skJsonNode* json, const char* string)
     return false;
 }
 
-/* Insert the 'string' into the 'json' at the index 'index', 'string' being
- * the valid Json String and 'json' being the valid Json Array */
 PUBLIC(bool)
 skJson_array_insert_str(skJsonNode* json, const char* string, size_t index)
 {
@@ -631,8 +519,6 @@ skJson_array_insert_str(skJsonNode* json, const char* string, size_t index)
     return false;
 }
 
-/* Push the string literal 'string' into the 'json', 'string' being the 
- * valid Json String and 'json' being the valid Json Array */
 PUBLIC(bool)
 skJson_array_push_strlit(skJsonNode* json, const char* string)
 {
@@ -663,8 +549,6 @@ skJson_array_push_strlit(skJsonNode* json, const char* string)
     return false;
 }
 
-/* Insert the string literal 'string' into the 'json' at the index 'index',
- * 'string' being the valid Json String and 'json' being the valid Json Array */
 PUBLIC(bool)
 skJson_array_insert_strlit(skJsonNode* json, const char* string, size_t index)
 {
@@ -692,7 +576,6 @@ skJson_array_insert_strlit(skJsonNode* json, const char* string, size_t index)
     return false;
 }
 
-/* Push the integer 'n' into the 'json', 'json' being the valid Json Array */
 PUBLIC(bool)
 skJson_array_push_int(skJsonNode* json, long int n)
 {
@@ -721,8 +604,6 @@ skJson_array_push_int(skJsonNode* json, long int n)
     return false;
 }
 
-/* Insert the integer 'n' into 'json' at the index 'index', 'json' being
- * valid Json Array. */
 PUBLIC(bool)
 skJson_array_insert_int(skJsonNode* json, long int n, size_t index)
 {
@@ -749,7 +630,6 @@ skJson_array_insert_int(skJsonNode* json, long int n, size_t index)
     return false;
 }
 
-/* Insert the double 'n' into the 'json', 'json' being valid Json Array */
 PUBLIC(bool)
 skJson_array_push_double(skJsonNode* json, double n)
 {
@@ -779,8 +659,6 @@ skJson_array_push_double(skJsonNode* json, double n)
     return false;
 }
 
-/* Insert the double 'n' into the 'json' at the index 'index', 'json' being valid
- * Json Array */
 PUBLIC(bool)
 skJson_array_insert_double(skJsonNode* json, double n, size_t index)
 {
@@ -807,7 +685,6 @@ skJson_array_insert_double(skJsonNode* json, double n, size_t index)
     return false;
 }
 
-/* Push the 'boolean' into the 'json', 'json' being valid Json Array. */
 PUBLIC(bool)
 skJson_array_push_bool(skJsonNode* json, bool boolean)
 {
@@ -837,8 +714,6 @@ skJson_array_push_bool(skJsonNode* json, bool boolean)
     return false;
 }
 
-/* Insert the 'boolean' at the index 'index' into the 'json', 'json' being valid
- * Json Array. */
 PUBLIC(bool)
 skJson_array_insert_bool(skJsonNode* json, bool boolean, size_t index)
 {
@@ -865,7 +740,6 @@ skJson_array_insert_bool(skJsonNode* json, bool boolean, size_t index)
     return false;
 }
 
-/* Push the NULL into the 'json', json being the valid Json Array */
 PUBLIC(bool)
 skJson_array_push_null(skJsonNode* json)
 {
@@ -892,7 +766,6 @@ skJson_array_push_null(skJsonNode* json)
     return false;
 }
 
-/* Insert NULL at the index 'index' into the 'json', 'json' being the valid Json Array */
 PUBLIC(bool)
 skJson_array_insert_null(skJsonNode* json, size_t index)
 {
@@ -952,9 +825,6 @@ skJson_array_insert_element(skJsonNode* json, skJsonNode* element, size_t index)
     return false;
 }
 
-
-
-/* Create Json Array of Json strings */
 PUBLIC(skJsonNode*)
 skJson_array_from_strings(const char* const* strings, size_t count)
 {
@@ -971,7 +841,6 @@ skJson_array_from_strings(const char* const* strings, size_t count)
     return arr_node;
 }
 
-/* Create Json Array of references to Json strings */
 PUBLIC(skJsonNode*)
 skJson_array_from_litstrings(const char* const* strings, size_t count)
 {
@@ -991,7 +860,6 @@ skJson_array_from_litstrings(const char* const* strings, size_t count)
     return arr_node;
 }
 
-/* Create Json Array of Json integers */
 PUBLIC(skJsonNode*)
 skJson_array_from_integers(const int* integers, size_t count)
 {
@@ -1011,7 +879,6 @@ skJson_array_from_integers(const int* integers, size_t count)
     return arr_node;
 }
 
-/* Create Json Array of Json doubles */
 PUBLIC(skJsonNode*)
 skJson_array_from_doubles(const double* doubles, size_t count)
 {
@@ -1031,7 +898,6 @@ skJson_array_from_doubles(const double* doubles, size_t count)
     return arr_node;
 }
 
-/* Create Json Array of Json Booleans */
 PUBLIC(skJsonNode*)
 skJson_array_from_booleans(const bool* booleans, size_t count)
 {
@@ -1051,7 +917,6 @@ skJson_array_from_booleans(const bool* booleans, size_t count)
     return arr_node;
 }
 
-/* Create Json Array of NULL values */
 PUBLIC(skJsonNode*)
 skJson_array_from_nulls(size_t count)
 {
@@ -1104,7 +969,6 @@ array_push_node_checked(skJsonNode* json, skJsonNode* node)
     return false;
 }
 
-/* Pop the element from the Json Array copying and returning it */
 PUBLIC(skJsonNode*)
 skjson_array_pop(skJsonNode* json)
 {
@@ -1124,8 +988,6 @@ skjson_array_pop(skJsonNode* json)
     return node;
 }
 
-/* Remove the element from 'json' at index 'index' freeing its allocation and
- * its sub elements */
 PUBLIC(bool)
 skjson_array_remove(skJsonNode* json, size_t index)
 {
@@ -1137,7 +999,6 @@ skjson_array_remove(skJsonNode* json, size_t index)
     return skVec_remove(json->data.j_array, index, (FreeFn) skJsonNode_drop);
 }
 
-/* Return the amount of elements stored in Json Array */
 PUBLIC(size_t)
 skJson_array_len(skJsonNode* json)
 {
@@ -1187,72 +1048,147 @@ skJson_object_new(void) {
     return ObjectNode_new(NULL);
 }
 
-PRIVATE(skJsonNode*)
-ObjectNode_new(skJsonNode* parent)
-{
-    skJsonNode* object_node;
-
-    object_node = RawNode_new(SK_OBJECT_NODE, parent);
-
-    if(is_null(object_node)) {
-        return NULL;
-    }
-
-    object_node->data.j_object = skHashTable_new(
-        (HashFn) NULL,
-        (CmpKeyFn) strcmp,
-        (FreeKeyFn) free,
-        (FreeValueFn) skJsonNode_drop);
-
-    if(is_null(object_node->data.j_array)) {
-        return NULL;
-    }
-
-    return object_node;
-}
-
 PUBLIC(bool)
-skJson_object_insert_element(skJsonNode* json, char* key, skJsonNode* element)
+skJson_object_sort_ascending(skJsonNode* json)
 {
     if(!valid_with_type(json, SK_OBJECT_NODE)) {
         THROW_ERR(WrongNodeType);
         return false;
     }
 
-    return skHashTable_insert(json->data.j_object, key, element);
+    return skVec_sort(json->data.j_object, (CmpFn) cmp_objtuples);
+}
+
+PRIVATE(int)
+cmp_objtuples(skObjectTuple* tupleA, skObjectTuple* tupleB)
+{
+    return strcmp(tupleA->key, tupleB->key);
 }
 
 PUBLIC(bool)
-skJson_object_remove_element(skJsonNode* json, char* key)
+skJson_object_sort_descending(skJsonNode* json)
 {
     if(!valid_with_type(json, SK_OBJECT_NODE)) {
         THROW_ERR(WrongNodeType);
         return false;
     }
 
-    return skHashTable_remove(json->data.j_object, key);
+    return skVec_sort(json->data.j_object, (CmpFn) cmp_objtuples_descending);
+}
+
+PRIVATE(int)
+cmp_objtuples_descending(skObjectTuple* tupleA, skObjectTuple* tupleB)
+{
+    int cmp;
+
+    if((cmp = cmp_objtuples(tupleA, tupleB)) < 0) {
+        return 1;
+    } else if(cmp > 0) {
+        return -1;
+    }
+
+    return 0;
+}
+
+PUBLIC(bool)
+skJson_object_insert_element(skJsonNode* json, const char* key, skJsonNode** elementp, size_t index)
+{
+    skObjectTuple tuple;
+
+    if(!valid_with_type(json, SK_OBJECT_NODE)) {
+        THROW_ERR(WrongNodeType);
+        return false;
+    }
+
+    tuple.key = discard_const(key);
+    memcpy(&tuple.value, *elementp, sizeof(skJsonNode));
+
+
+    if(!skVec_insert(json->data.j_object, &tuple, index)) {
+        return false;
+    } else {
+        free(*elementp);
+        *elementp = NULL;
+    }
+
+    return true;
+}
+
+PUBLIC(bool)
+skJson_object_remove_element(skJsonNode* json, size_t index)
+{
+    if(!valid_with_type(json, SK_OBJECT_NODE)) {
+        THROW_ERR(WrongNodeType);
+        return false;
+    }
+
+    return skVec_remove(json->data.j_object, index, (FreeFn) skJsonNode_drop);
+}
+
+PUBLIC(bool)
+skJson_object_remove_element_by_key(skJsonNode* json, const char* key, bool sorted, bool descending)
+{
+    skObjectTuple dummytuple;
+
+    if(!valid_with_type(json, SK_OBJECT_NODE)) {
+        THROW_ERR(WrongNodeType);
+        return false;
+    }
+
+    dummytuple.key = discard_const(key);
+
+
+    return skVec_remove_by_key(
+            json->data.j_object,
+            &dummytuple,
+            (descending) ? (CmpFn) cmp_objtuples_descending : (CmpFn) cmp_objtuples,
+            (FreeFn) skJsonNode_drop,
+            sorted);
 }
 
 PUBLIC(skJsonNode*)
-skJson_object_get_element(skJsonNode* json, char* key)
+skJson_object_get_element(const skJsonNode* json, size_t index)
 {
     if(!valid_with_type(json, SK_OBJECT_NODE)) {
         THROW_ERR(WrongNodeType);
         return NULL;
     }
 
-    return skHashTable_get(json->data.j_object, key);
+    return skVec_index(json->data.j_object, index);
+}
+
+PUBLIC(skJsonNode*)
+skJson_object_get_element_by_key(
+        const skJsonNode* json,
+        const char* key,
+        bool sorted,
+        bool descending)
+{
+    skObjectTuple dummytuple;
+
+    if(!valid_with_type(json, SK_OBJECT_NODE)) {
+        THROW_ERR(WrongNodeType);
+        return NULL;
+    }
+
+    dummytuple.key = discard_const(key);
+
+    return skVec_get_by_key(
+            json->data.j_object,
+            &dummytuple,
+            (descending) ? (CmpFn) cmp_objtuples_descending : (CmpFn) cmp_objtuples,
+            sorted);
 }
 
 PUBLIC(size_t)
-skJson_object_len(skJsonNode* json)
+skJson_object_len(const skJsonNode* json)
 {
     if(!valid_with_type(json, SK_OBJECT_NODE)) {
         THROW_ERR(WrongNodeType);
         return NULL;
     }
 
-    return skHashTable_len(json->data.j_object);
+    return skVec_len(json->data.j_object);
 }
 
 PUBLIC(bool)
@@ -1263,47 +1199,69 @@ skJson_object_contains(const skJsonNode* json, const char* key)
         return NULL;
     }
 
-    return skHashTable_contains(json->data.j_object, key);
+    return skVec_contains(json->data.j_object, key, (CmpFn) strcmp);
 }
 
-PRIVATE(SBuff)
-SBuff_new(void)
+PRIVATE(Serializer)
+Serializer_new(size_t bufsize, bool expand)
 {
-    static const size_t buffer_size = BUFSIZ;
-
-    SBuff pbuf;
+    Serializer pbuf;
     unsigned char* buffer;
 
-    memset(&pbuf, 0, sizeof(SBuff));
+    memset(&pbuf, 0, sizeof(Serializer));
 
-    if(is_null(buffer = malloc(buffer_size))) {
+    if(bufsize == 0) {
+        bufsize = BUFSIZ;
+    }
+
+    if(is_null(buffer = malloc(bufsize))) {
         THROW_ERR(OutOfMemory);
         return pbuf;
     }
 
-    pbuf.length = buffer_size;
+    pbuf.length = bufsize;
     pbuf.buffer = buffer;
+    pbuf.expand = expand;
+
+    return pbuf;
+}
+
+PRIVATE(Serializer)
+Serializer_from(unsigned char* buffer, size_t bufsize, bool expand)
+{
+    Serializer pbuf;
+
+    memset(&pbuf, 0, sizeof(Serializer));
+#ifdef SK_DBUG
+    if(is_null(buffer) || bufsize == 0) {
+        return pbuf;
+    }
+#endif
+    pbuf.length = bufsize;
+    pbuf.buffer = buffer;
+    pbuf.expand = expand;
+    pbuf.user_provided = true;
 
     return pbuf;
 }
 
 PRIVATE(void)
-SBuff_drop(SBuff* buff)
+Serializer_drop(Serializer* serializer)
 {
 #ifdef SK_DBUG
-    assert(is_some(buff));
-    assert(is_some(buff->buffer));
+    assert(is_some(serializer));
+    assert(is_some(serializer->buffer));
 #endif
-    free(buff->buffer);
-    memset(buff, 0, sizeof(SBuff));
+    free(serializer->buffer);
+    memset(serializer, 0, sizeof(Serializer));
 }
 
 PRIVATE(unsigned char*)
-SBuff_ensure(SBuff* buff, size_t needed)
+Serializer_buffer_ensure(Serializer* serializer, size_t needed)
 {
 #ifdef SK_DBUG
-    assert(is_some(buff));
-    assert(is_some(buff->buffer));
+    assert(is_some(serializer));
+    assert(is_some(serializer->buffer));
     assert(!(buf->length > 0 && buf->offset >= buf->length));
 #endif
     unsigned char* newbuf;
@@ -1311,14 +1269,25 @@ SBuff_ensure(SBuff* buff, size_t needed)
 
     if(needed > INT_MAX) {
         THROW_ERR(AllocationTooLarge);
+        if(!serializer->user_provided) {
+            Serializer_drop(serializer);
+        }
         return NULL;
     }
 
-    needed += buff->offset + 1; /* 1 for null terminator */
+    needed += serializer->offset + 1; /* 1 for null terminator */
 
     /* If we got enough space return current position */
-    if(needed <= buff->length) {
-        return buff->buffer + buff->offset;
+    if(needed <= serializer->length) {
+        return serializer->buffer + serializer->offset;
+    }
+
+    /* Check if we are allowed to expand */
+    if(!serializer->expand) {
+        if(!serializer->user_provided) {
+            Serializer_drop(serializer);
+        }
+        return NULL;
     }
 
     /* Else try expand the buffer */
@@ -1327,6 +1296,9 @@ SBuff_ensure(SBuff* buff, size_t needed)
             newsize = INT_MAX;
         } else {
             THROW_ERR(AllocationTooLarge);
+            if(!serializer->user_provided) {
+                Serializer_drop(serializer);
+            }
             return NULL;
         }
     } else {
@@ -1334,87 +1306,145 @@ SBuff_ensure(SBuff* buff, size_t needed)
     }
 
     /* Try reallocate the buffer to 'newsize' */
-    newbuf = realloc(buff->buffer, newsize);
+    newbuf = realloc(serializer->buffer, newsize);
 
     if(is_null(newbuf)) {
         THROW_ERR(OutOfMemory);
-        SBuff_drop(buff);
+        if(!serializer->user_provided) {
+            Serializer_drop(serializer);
+        }
         return NULL;
     }
 
-    buff->buffer = newbuf;
-    buff->length = newsize;
+    serializer->buffer = newbuf;
+    serializer->length = newsize;
 
-    return newbuf + buff->offset;
+    return newbuf + serializer->offset;
 }
 
 PRIVATE(void)
-SBuff_update_offset(SBuff* buff)
+Serializer_offset_update(Serializer* serializer)
 {
 #ifdef SK_DBUG
-    assert(is_some(buff));
-    assert(is_some(buff->buffer));
+    assert(is_some(serializer));
+    assert(is_some(serializer->buffer));
 #endif
-    buff->offset += strlen((char*)buff->buffer + buff->offset);
+    serializer->offset += strlen((char*)serializer->buffer + serializer->offset);
 }
 
 PUBLIC(unsigned char*)
-skJson_serialize(skJsonNode* json) {
-    SBuff pbuf;
+skJson_serialize_with_buffer(skJsonNode* json, unsigned char* buffer, size_t size, bool expand)
+{
+    Serializer serializer;
+
+    if(is_null(json) || is_null(buffer) || size == 0) {
+        return NULL;
+    }
+
+    if(json->type == SK_ERROR_NODE) {
+        THROW_ERR(WrongNodeType);
+        return NULL;
+    }
+
+    serializer = Serializer_from(buffer, size, expand);
+
+#ifdef SK_DBUG
+    assert(is_some(serializer.buffer));
+#endif
+
+    if(!Serializer_serialize(&serializer, json)) {
+        return NULL;
+    }
+
+    return serializer.buffer;
+}
+
+PUBLIC(unsigned char*)
+skJson_serialize_with_bufsize(skJsonNode* json, size_t size, bool expand)
+{
+    Serializer serializer;
+
+    if(is_null(json) || size == 0) {
+        return NULL;
+    }
+
+    if(json->type == SK_ERROR_NODE) {
+        THROW_ERR(WrongNodeType);
+        return NULL;
+    }
+
+    if(is_null((serializer = Serializer_new(size, expand)).buffer)) {
+        return NULL;
+    }
+
+    if(!Serializer_serialize(&serializer, json)) {
+        return NULL;
+    }
+
+    return serializer.buffer;
+}
+
+PUBLIC(unsigned char*)
+skJson_serialize(skJsonNode* json)
+{
+    Serializer serializer;
 
     if(is_null(json)) {
         return NULL;
     }
 
-    pbuf = SBuff_new();
+    if(json->type == SK_ERROR_NODE) {
+        THROW_ERR(WrongNodeType);
+        return NULL;
+    }
 
-    if(is_null((pbuf = SBuff_new()).buffer)) {
+    if(is_null((serializer = Serializer_new(0, true)).buffer)) {
         return NULL;
     }
     
-    if(!json_serialize(json, &pbuf)) {
-        THROW_ERR(SerializerError);
+    if(!Serializer_serialize(&serializer, json)) {
         return NULL;
     }
 
-    return pbuf.buffer;
+    return serializer.buffer;
 }
 
 PRIVATE(bool)
-json_serialize(skJsonNode* json, SBuff* sbuf)
+Serializer_serialize(Serializer* serializer, skJsonNode* json)
 {
 #ifdef SK_DBUG
     assert(is_some(json));
-    assert(is_some(sbuf));
-    assert(is_some(sbuf->buffer));
+    assert(is_some(serializer));
+    assert(is_some(serializer->buffer));
 #endif
     switch(json->type) {
         case SK_STRING_NODE:
         case SK_STRINGLIT_NODE:
-            return serialize_string(sbuf, json->data.j_string);
+            return Serializer_serialize_string(serializer, json->data.j_string);
         case SK_INT_NODE:
         case SK_DOUBLE_NODE:
-            return serialize_number(sbuf, json);
+            return Serializer_serialize_number(serializer, json);
         case SK_BOOL_NODE:
-            return serialize_bool(sbuf, json->data.j_boolean);
+            return Serializer_serialize_bool(serializer, json->data.j_boolean);
         case SK_NULL_NODE:
-            return serialize_null(sbuf);
+            return Serializer_serialize_null(serializer);
         case SK_ARRAY_NODE:
-            return serialize_array(sbuf, json->data.j_array);
+            return Serializer_serialize_array(serializer, json->data.j_array);
         case SK_OBJECT_NODE:
-            return serialize_object(sbuf, json->data.j_object);
+            return Serializer_serialize_object(serializer, json->data.j_object);
         case SK_ERROR_NODE:
         default:
+            THROW_ERR(SerializerInvalidJson);
             return false;
     }
 }
 
 PRIVATE(bool)
-serialize_number(SBuff *buffer, skJsonNode* json)
+Serializer_serialize_number(Serializer *serializer, skJsonNode* json)
 {
 #ifdef SK_DBUG
-    assert(is_some(buffer));
-    assert(is_some(buffer->buffer));
+    assert(is_some(serializer));
+    assert(is_some(serializer->buffer));
     assert(is_some(json));
 #endif
     char buff[30];
@@ -1428,33 +1458,34 @@ serialize_number(SBuff *buffer, skJsonNode* json)
     }
 
     if(len < 0 || len >= 30) {
+        THROW_ERR(SerializerNumberError);
         return false;
     }
 
-    out = SBuff_ensure(buffer, len + sizeof("")); /* len + '\0' */
+    out = Serializer_buffer_ensure(serializer, len + sizeof("")); /* len + '\0' */
 
     if(is_null(out)) {
         return false;
     }
 
     strcat((char*)out, buff);
-    SBuff_update_offset(buffer);
+    Serializer_offset_update(serializer);
 
     return true;
 }
 
 PRIVATE(bool)
-serialize_string(SBuff *buffer, const char* str)
+Serializer_serialize_string(Serializer *serializer, const char* str)
 {
 #ifdef SK_DBUG
-    assert(is_some(buffer));
-    assert(is_some(buffer->buffer));
+    assert(is_some(serializer));
+    assert(is_some(serializer->buffer));
 #endif
     unsigned char* out;
     size_t len;
 
     len = strlen(str) + sizeof("\"\"");
-    out = SBuff_ensure(buffer, len);
+    out = Serializer_buffer_ensure(serializer, len);
 
     if(is_null(out)) {
         return false;
@@ -1465,80 +1496,71 @@ serialize_string(SBuff *buffer, const char* str)
     out[len + 1] = '\"';
     out[len + 2] = '\0';
 
-    SBuff_update_offset(buffer);
+    Serializer_offset_update(serializer);
 
     return true;
 }
 
 PRIVATE(bool)
-serialize_bool(SBuff *buffer, bool boolean)
+Serializer_serialize_bool(Serializer *serializer, bool boolean)
 {
 #ifdef SK_DBUG
-    assert(is_some(buffer));
-    assert(is_some(buffer->buffer));
+    assert(is_some(serializer));
+    assert(is_some(serializer->buffer));
 #endif
     unsigned char* out;
 
     if(boolean) {
-        out = SBuff_ensure(buffer, 5);
-
-        if(is_null(out)) {
+        if(is_null(out = Serializer_buffer_ensure(serializer, 5))) {
             return false;
         }
-
         strcat((char*)out, "true");
     } else {
-        out = SBuff_ensure(buffer, 6);
-
-        if(is_null(out)) {
+        if(is_null(out = Serializer_buffer_ensure(serializer, 6))) {
             return false;
         }
-
         strcat((char*)out, "false");
     }
 
-    SBuff_update_offset(buffer);
+    Serializer_offset_update(serializer);
     return true;
 }
 
 PRIVATE(bool)
-serialize_null(SBuff *buffer)
+Serializer_serialize_null(Serializer *serializer)
 {
 #ifdef SK_DBUG
-    assert(is_some(buffer));
-    assert(is_some(buffer->buffer));
+    assert(is_some(serializer));
+    assert(is_some(serializer->buffer));
 #endif
     unsigned char* out;
 
-    if(is_null(out = SBuff_ensure(buffer, 5))) {
+    if(is_null(out = Serializer_buffer_ensure(serializer, 5))) {
         return false;
     }
-
     strcat((char*)out, "null");
-    SBuff_update_offset(buffer);
-
+    Serializer_offset_update(serializer);
     return true;
 }
 
 PRIVATE(bool)
-serialize_array(SBuff *buffer, skVec* vec)
+Serializer_serialize_array(Serializer *serializer, skVec* vec)
 {
 #ifdef SK_DBUG
-    assert(is_some(buffer));
-    assert(is_some(buffer->buffer));
+    assert(is_some(serializer));
+    assert(is_some(serializer->buffer));
 #endif
-
     unsigned char* out;
     size_t len, i;
     skJsonNode* current;
 
-    if(is_null(out = SBuff_ensure(buffer, 1))) {
+    if(is_null(out = Serializer_buffer_ensure(serializer, 1))) {
         return false;
     }
 
     out[0] = '[';
-    buffer->offset++;
-    buffer->depth++;
+    serializer->offset++;
+    serializer->depth++;
 
     len = skVec_len(vec);
 
@@ -1547,59 +1569,88 @@ serialize_array(SBuff *buffer, skVec* vec)
 #ifdef SK_DBUG
         assert(is_some(current));
 #endif
-        if(!json_serialize(current, buffer)) {
+        if(!Serializer_serialize(serializer, current)) {
             return false;
         }
 
         if(i + 1 < len) {
-            if(is_null(out = SBuff_ensure(buffer, 2))) {
+            if(is_null(out = Serializer_buffer_ensure(serializer, 2))) {
                 return false;
             }
             *out++ = ',';
             *out = '\0';
-            buffer->offset += 2;
+            serializer->offset += 2;
         }
     }
 
-    if(is_null(out = SBuff_ensure(buffer, 2))) {
+    if(is_null(out = Serializer_buffer_ensure(serializer, 2))) {
         return false;
     }
 
     *out++ = ']';
     *out = '\0';
-    buffer->depth--;
-    buffer->offset += 2;
+    serializer->depth--;
+    serializer->offset += 2;
 
     return true;
 }
 
 PRIVATE(bool)
-serialize_object(SBuff* buff, skHashTable* table)
+Serializer_serialize_object(Serializer* serializer, skVec* table)
 {
 #ifdef SK_DBUG
-    assert(is_some(buff));
-    assert(is_some(buff->buffer));
+    assert(is_some(serializer));
+    assert(is_some(serializer->buffer));
+    assert(is_some(table));
 #endif
-
     unsigned char* out;
-    skTableIter* iter;
-    skTuple tuple;
-    size_t i;
+    skObjectTuple* tuple;
+    size_t len, i;
 
-    if(is_null(out = SBuff_ensure(buff, 1))) {
+    if(is_null(out = Serializer_buffer_ensure(serializer, 1))) {
         return false;
     }
 
     out[0] = '{';
-    buff->offset++;
-    buff->depth++;
+    serializer->offset++;
+    serializer->depth++;
 
-    if(is_null(iter = skHashTable_into_iter(table))) {
-        SBuff_drop(buff);
-        return false;
+    for(i = 0; i < len; i++) {
+        tuple = skVec_index(table, i);
+#ifdef SK_DBUG
+        assert(is_some(tuple));
+#endif
+        if(!Serializer_serialize_string(serializer, tuple->key)) {
+            return false;
+        }
+
+        if(is_null(out = Serializer_buffer_ensure(serializer, 2))) {
+            return false;
+        }
+
+        *out++ = ':';
+        *out = '\0';
+        serializer->offset += 2;
+
+        if(!Serializer_serialize(serializer, &tuple->value)) {
+            return false;
+        }
+
+        if(is_null(out = Serializer_buffer_ensure(serializer, 2))) {
+            return false;
+        }
+
+        if(i + 1 != len) {
+            *out++ = ',';
+            *out = '\0';
+            serializer->offset += 2;
+        }
     }
 
-    while((tuple = skTableIter_next(iter)).key != NULL) {
+    *out++ = '}';
+    *out = '\0';
+    serializer->offset += 2;
+    serializer->depth--;
 
-    }
+    return true;
 }

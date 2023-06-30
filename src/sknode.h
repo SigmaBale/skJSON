@@ -1,7 +1,6 @@
 #ifndef __SK_NODE_H__
 #define __SK_NODE_H__
 
-#include "skhashtable.h"
 #include "skscanner.h"
 #include "sktypes.h"
 #include "skvec.h"
@@ -21,7 +20,7 @@ typedef enum {
 
 /************ Json Data ***************/
 typedef union skNodeData {
-  skHashTable *j_object;
+  skVec *j_object;
   skVec *j_array;
   skJsonString j_string;
   skJsonInteger j_int;
@@ -31,26 +30,32 @@ typedef union skNodeData {
 } skNodeData;
 
 /********** Core type ***************/
-typedef struct skJsonNode {
+typedef struct skJsonNode skJsonNode;
+
+struct skJsonNode {
   skNodeType type;
   skNodeData data;
-  struct skJsonNode *parent;
+  skJsonNode *parent;
   size_t index;
-} skJsonNode;
+};
 
-skJsonNode *skJsonObject_new(skJsonNode *parent);
-skJsonNode *skJsonArray_new(skJsonNode *parent);
-skJsonNode *skJsonNode_new(skScanner *scanner, skJsonNode *parent);
-skJsonNode *skJsonError_new(skJsonString msg, skJsonState state,
-                            skJsonNode *parent);
-skJsonNode *skJsonString_new(skJsonString str, skJsonNode *parent);
-skJsonNode *skJsonInteger_new(skJsonInteger number, skJsonNode *parent);
-skJsonNode *skJsonDouble_new(skJsonDouble number, skJsonNode *parent);
-skJsonNode *skJsonBool_new(skJsonBool boolean, skJsonNode *parent);
-skJsonNode *skJsonNull_new(skJsonNode *parent);
+/******** Json Object Tuple **********/
+typedef struct {
+  char *key;
+  skJsonNode value;
+} skObjectTuple;
 
-void skJsonMember_drop(skJsonNode *member);
-void skJsonNode_drop(skJsonNode *);
+skJsonNode *RawNode_new(skNodeType type, skJsonNode *parent);
+skJsonNode *ObjectNode_new(skJsonNode *parent);
+skJsonNode *ArrayNode_new(skJsonNode *parent);
+skJsonNode *StringNode_new(skJsonString str, skNodeType type, skJsonNode *parent);
+skJsonNode *IntNode_new(skJsonInteger number, skJsonNode *parent);
+skJsonNode *DoubleNode_new(skJsonDouble number, skJsonNode *parent);
+skJsonNode *BoolNode_new(skJsonBool boolean, skJsonNode *parent);
+skJsonNode *ErrorNode_new(skJsonString msg, skJsonState state,
+                          skJsonNode *parent);
+void skJsonNode_drop(skJsonNode *node);
+void skObjectTuple_drop(skObjectTuple *tuple);
 
 /* Debug */
 void print_node(skJsonNode *node);

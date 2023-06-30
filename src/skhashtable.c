@@ -382,14 +382,14 @@ skHashTable_into_iter(const skHashTable* table)
     return iter;
 }
 
-skTuple
+skTableTuple
 skTableIter_next(skTableIter* iter)
 {
-    skHashCell* cell;
-    skTuple     tuple;
+    skHashCell*  cell;
+    skTableTuple tuple;
 
-    tuple.value = NULL;
     tuple.key   = NULL;
+    tuple.value = NULL;
 
     if(is_null(iter) || iter->index == iter->len) {
         return tuple;
@@ -403,6 +403,16 @@ skTableIter_next(skTableIter* iter)
     tuple.value = cell->value;
 
     return tuple;
+}
+
+bool
+skTableIter_last(skTableIter* iter)
+{
+    if(is_null(iter)) {
+        return true;
+    }
+
+    return iter->index + 1 == iter->len;
 }
 
 void

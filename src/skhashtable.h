@@ -16,12 +16,10 @@ typedef struct skHashTable skHashTable;
 
 typedef struct skTableIter skTableIter;
 
-typedef struct skTuple skTuple;
-
-struct skTuple {
-  const void *key;
-  const void *value;
-};
+typedef struct skTableTuple {
+  void *key;
+  void *value;
+} skTableTuple;
 
 skHashTable *skHashTable_new(HashFn hash_fn, CmpKeyFn cmp_key,
                              FreeKeyFn free_key, FreeValueFn free_val);
@@ -40,7 +38,9 @@ void skHashTable_drop(skHashTable *table);
 
 skTableIter *skHashTable_into_iter(const skHashTable *table);
 
-skTuple skTableIter_next(skTableIter *iter);
+skTableTuple skTableIter_next(skTableIter *iter);
+
+bool skTableIter_last(skTableIter *iter);
 
 void skTableIter_drop(skTableIter *iter);
 

@@ -11,75 +11,66 @@
 #define ERR_SIZE 100
 
 skJsonNode*
-skJsonNode_default(skJsonNode* parent)
+RawNode_new(skNodeType type, skJsonNode* parent)
 {
-    skJsonNode* node;
+    skJsonNode* raw_node;
 
-    node = malloc(sizeof(skJsonNode));
-    if(is_null(node)) {
+    raw_node = malloc(sizeof(skJsonNode));
+    if(is_null(raw_node)) {
         THROW_ERR(OutOfMemory);
         return NULL;
     }
 
-    /* Leave data field as random garbo */
-    node->parent = parent;
-    node->index  = 0;
+    raw_node->type   = type;
+    raw_node->parent = parent;
+    raw_node->index  = 0;
 
-    return node;
+    return raw_node;
 }
 
 skJsonNode*
-skJsonObject_new(skJsonNode* parent)
+ObjectNode_new(skJsonNode* parent)
 {
     skJsonNode* object_node;
 
-    object_node = skJsonNode_default(parent);
-    if(is_null(object_node)) {
+    if(is_null(object_node = RawNode_new(SK_OBJECT_NODE, parent))) {
         return NULL;
     }
 
-    object_node->data.j_object = skHashTable_new(
-        NULL,
-        (CmpKeyFn) strcmp,
-        (FreeKeyFn) free,
-        (FreeValueFn) skJsonNode_drop);
+    object_node->data.j_object = skVec_new(sizeof(skObjectTuple));
 
     if(is_null(object_node->data.j_object)) {
         return NULL;
     }
 
-    object_node->type = SK_OBJECT_NODE;
     return object_node;
 }
 
 skJsonNode*
-skJsonArray_new(skJsonNode* parent)
+ArrayNode_new(skJsonNode* parent)
 {
     skJsonNode* array_node;
 
-    array_node = skJsonNode_default(parent);
-    if(is_null(array_node)) {
+    if(is_null(array_node = RawNode_new(SK_ARRAY_NODE, parent))) {
         return NULL;
     }
 
-    array_node->data.j_array = skVec_new(sizeof(skJsonNode));
-    if(is_null(array_node->data.j_array)) {
+    if(is_null(array_node->data.j_array = skVec_new(sizeof(skJsonNode)))) {
+        free(array_node);
         return NULL;
     }
 
-    array_node->type = SK_ARRAY_NODE;
     return array_node;
 }
 
 skJsonNode*
-skJsonError_new(skJsonString msg, skJsonState state, skJsonNode* parent)
+ErrorNode_new(skJsonString msg, skJsonState state, skJsonNode* parent)
 {
     skJsonNode* node;
     char*       error;
     char        errmsg[ERR_SIZE];
 
-    node = skJsonNode_default(parent);
-    if(is_null(node)) {
+    if(is_null(node = RawNode_new(SK_ERROR_NODE, parent))) {
         return NULL;
     }
 
@@ -91,94 +82,90 @@ skJsonError_new(skJsonString msg, skJsonState state, skJsonNode* parent)
         state.col,
         state.depth);
 
-    error = strdup_ansi(errmsg);
-    if(is_null(error)) {
+    if(is_null(error = strdup_ansi(errmsg))) {
+        free(node);
         return NULL;
     }
 
-    node->type       = SK_ERROR_NODE;
     node->data.j_err = error;
-
     return node;
 }
 
 skJsonNode*
-skJsonString_new(skJsonString str, skJsonNode* parent)
+StringNode_new(const skJsonString str, skNodeType type, skJsonNode* parent)
 {
-    skJsonNode* node;
+    skJsonNode*  string_node;
+    skJsonString dupped;
 
-    node = skJsonNode_default(parent);
-    if(is_null(node)) {
+    if(type == SK_STRING_NODE) {
+        if(is_null(dupped = strdup_ansi(str))) {
+            return NULL;
+        }
+    } else {
+        dupped = str;
+    }
+
+    if(is_null(string_node = RawNode_new(type, NULL))) {
+        if(type == SK_STRING_NODE) {
+            free(dupped);
+        }
         return NULL;
     }
 
-    node->type          = SK_STRING_NODE;
-    node->data.j_string = str;
-
-    return node;
+    string_node->data.j_string = dupped;
+    return string_node;
 }
 
 skJsonNode*
-skJsonInteger_new(skJsonInteger number, skJsonNode* parent)
+IntNode_new(long int n, skJsonNode* parent)
 {
-    skJsonNode* node;
+    skJsonNode* int_node;
 
-    node = skJsonNode_default(parent);
-    if(is_null(node)) {
+    int_node = RawNode_new(SK_INT_NODE, parent);
+    if(is_null(int_node)) {
         return NULL;
     }
 
-    node->type       = SK_INT_NODE;
-    node->data.j_int = number;
-
-    return node;
+    int_node->data.j_int = n;
+    return int_node;
 }
 
 skJsonNode*
-skJsonDouble_new(skJsonDouble number, skJsonNode* parent)
+DoubleNode_new(double n, skJsonNode* parent)
 {
-    skJsonNode* node;
+    skJsonNode* double_node;
 
-    node = skJsonNode_default(parent);
-    if(is_null(node)) {
+    double_node = RawNode_new(SK_DOUBLE_NODE, parent);
+    if(is_null(double_node)) {
         return NULL;
     }
 
-    node->type          = SK_DOUBLE_NODE;
-    node->data.j_double = number;
-
-    return node;
+    double_node->data.j_double = n;
+    return double_node;
 }
 
 skJsonNode*
-skJsonBool_new(skJsonBool boolean, skJsonNode* parent)
+BoolNode_new(bool boolean, skJsonNode* parent)
 {
-    skJsonNode* node;
+    skJsonNode* bool_node;
 
-    node = skJsonNode_default(parent);
-    if(is_null(node)) {
+    bool_node = RawNode_new(SK_BOOL_NODE, parent);
+    if(is_null(bool_node)) {
         return NULL;
     }
 
-    node->type           = SK_BOOL_NODE;
-    node->data.j_boolean = boolean;
-
-    return node;
+    bool_node->data.j_boolean = boolean;
+    return bool_node;
 }
 
-skJsonNode*
-skJsonNull_new(skJsonNode* parent)
+void
+skObjectTuple_drop(skObjectTuple* tuple)
 {
-    skJsonNode* node;
-
-    node = skJsonNode_default(parent);
-    if(is_null(node)) {
-        return NULL;
-    }
-
-    node->type = SK_NULL_NODE;
-
-    return node;
+#ifdef SK_DBUG
+    assert(is_some(tuple));
+#endif
+    free(tuple->key);
+    skJsonNode_drop(&tuple->value);
 }
 
 void
@@ -189,7 +176,7 @@ skJsonNode_drop(skJsonNode* node)
     if(!is_null(node)) {
         switch(node->type) {
             case SK_OBJECT_NODE:
-                skHashTable_drop(node->data.j_object);
+                skVec_drop(node->data.j_object, (FreeFn) skObjectTuple_drop);
                 break;
             case SK_ARRAY_NODE:
                 skVec_drop(node->data.j_array, (FreeFn) skJsonNode_drop);
@@ -204,16 +191,17 @@ skJsonNode_drop(skJsonNode* node)
         }
 
         parent = node->parent;
-        if(!is_null(parent) && parent->type == SK_ARRAY_NODE) {
-            /* Json Array nodes are directly copied into the json array (vec)
-             * this is why we can only remove these values instead of freeing.*/
-            skVec_remove(parent->data.j_array, node->index, NULL);
+        if(!is_null(parent)) {
+            if(parent->type == SK_ARRAY_NODE) {
+                skVec_remove(parent->data.j_array, node->index, NULL);
+            } else {
+#ifdef SK_DBUG
+                assert(parent->type == SK_OBJECT_NODE);
+#endif
+                skVec_remove(parent->data.j_object, node->index, NULL);
+            }
+
         } else {
-            /* All the other nodes that do not have a parent or are part of
-             * the Json Object can be freed, note that the situation where
-             * the node is part of the Json Object and is getting directly freed
-             * is when we are dropping the whole Json Object, it is impossible
-             * for user to directly free/drop the node that is part of the Json Object */
             free(node);
         }
     }
