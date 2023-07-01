@@ -24,7 +24,9 @@ size_t skVec_capacity(const skVec *vec);
 
 size_t skVec_element_size(const skVec *vec);
 
-bool skVec_contains(const skVec* vec, const void* key, CmpFn cmp, bool sorted);
+bool skVec_contains(const skVec *vec, const void *key, CmpFn cmp, bool sorted);
+
+void skVec_clear(skVec *vec, FreeFn free_fn);
 
 void *skVec_get_by_key(const skVec *vec, const void *key, CmpFn cmp,
                        bool sorted);

@@ -172,6 +172,27 @@ skVec_push(skVec* vec, const void* element)
     return true;
 }
 
+void
+skVec_clear(skVec* vec, FreeFn free_fn)
+{
+    void* current;
+
+    if(is_null(vec) || is_null(vec->allocation)) {
+        return;
+    }
+
+    if(free_fn) {
+        while(is_some(current = skVec_pop(vec))) {
+            free_fn(current);
+        }
+    }
+
+    free(vec->allocation);
+    vec->allocation = NULL;
+    vec->capacity   = 0;
+    vec->len        = 0;
+}
+
 bool
 skVec_contains(const skVec* vec, const void* key, CmpFn cmp, bool sorted)
 {
@@ -182,7 +203,7 @@ void*
 skVec_get_by_key(const skVec* vec, const void* key, CmpFn cmp, bool sorted)
 {
     void*  current;
-    size_t size, idx;
+    size_t size;
 
     if(is_null(vec) || is_null(key)) {
         return NULL;
@@ -242,6 +263,7 @@ skVec_remove_by_key(skVec* vec, const void* key, CmpFn cmp, FreeFn free_fn, bool
             return skVec_remove(vec, idx, free_fn);
         }
     } else {
+        size = vec->len;
         while(size--) {
             current = _skVec_get(vec, size);
             if(cmp(current, key) == 0) {
@@ -382,10 +404,7 @@ _skVec_drop_elements(skVec* vec, FreeFn free_fn)
 
     size = vec->len;
     while(size--) {
-        free_fn(skVec_index(vec, size));
-#ifdef SK_DBG
-        vec->len--;
-#endif
+        free_fn(_skVec_get(vec, size));
     }
 }
 
@@ -396,8 +415,8 @@ skVec_drop(skVec* vec, FreeFn free_fn)
         return;
     }
 
-    if(!is_null(vec->allocation)) {
-        if(!is_null(free_fn)) {
+    if(is_some(vec->allocation)) {
+        if(is_some(free_fn)) {
             _skVec_drop_elements(vec, free_fn);
 #ifdef SK_DBUG
             assert(vec->len == 0);
@@ -409,5 +428,6 @@ skVec_drop(skVec* vec, FreeFn free_fn)
     vec->allocation = NULL;
     vec->capacity   = 0;
     vec->ele_size   = 0;
+    vec->len        = 0;
     free(vec);
 }

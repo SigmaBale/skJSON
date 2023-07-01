@@ -51,40 +51,40 @@ enum { OverflowDetected = 128 };
     const char *errmsg;                                                        \
     switch (err) {                                                             \
     case TableSizeLimit:                                                       \
-      errmsg = filename ":" STRINGIFY(line) TABLE_SIZE_LIMIT_ERR;              \
+      errmsg = filename ":" STRINGIFY(line) TABLE_SIZE_LIMIT_ERR "\n";         \
       break;                                                                   \
     case InvalidKey:                                                           \
-      errmsg = filename ":" STRINGIFY(line) INVALID_KEY_ERR;                   \
+      errmsg = filename ":" STRINGIFY(line) INVALID_KEY_ERR "\n";              \
       break;                                                                   \
     case ZeroSizedType:                                                        \
-      errmsg = filename ":" STRINGIFY(line) ZST_ERR;                           \
+      errmsg = filename ":" STRINGIFY(line) ZST_ERR "\n";                      \
       break;                                                                   \
     case OutOfMemory:                                                          \
-      errmsg = filename ":" STRINGIFY(line) OOM_ERR;                           \
+      errmsg = filename ":" STRINGIFY(line) OOM_ERR "\n";                      \
       break;                                                                   \
     case IndexOutOfBounds:                                                     \
-      errmsg = filename ":" STRINGIFY(line) INDEX_OOB_ERR;                     \
+      errmsg = filename ":" STRINGIFY(line) INDEX_OOB_ERR "\n";                \
       break;                                                                   \
     case AllocationTooLarge:                                                   \
-      errmsg = filename ":" STRINGIFY(line) ALLOC_ERR;                         \
+      errmsg = filename ":" STRINGIFY(line) ALLOC_ERR "\n";                    \
       break;                                                                   \
     case MissingComparisonFn:                                                  \
-      errmsg = filename ":" STRINGIFY(line) CMP_FN_ERR;                        \
+      errmsg = filename ":" STRINGIFY(line) CMP_FN_ERR "\n";                   \
       break;                                                                   \
     case WrongNodeType:                                                        \
-      errmsg = filename ":" STRINGIFY(line) WRONG_NT_ERR;                      \
+      errmsg = filename ":" STRINGIFY(line) WRONG_NT_ERR "\n";                 \
       break;                                                                   \
     case InvalidString:                                                        \
-      errmsg = filename ":" STRINGIFY(line) INVALID_STR_ERR;                   \
+      errmsg = filename ":" STRINGIFY(line) INVALID_STR_ERR "\n";              \
       break;                                                                   \
     case InvalidValue:                                                         \
-      errmsg = filename ":" STRINGIFY(line) INVALID_VAL_ERR;                   \
+      errmsg = filename ":" STRINGIFY(line) INVALID_VAL_ERR "\n";              \
       break;                                                                   \
     case SerializerNumberError:                                                \
-      errmsg = filename ":" STRINGIFY(line) SERIALIZER_NUMBER_ERR;             \
+      errmsg = filename ":" STRINGIFY(line) SERIALIZER_NUMBER_ERR "\n";        \
       break;                                                                   \
     case SerializerInvalidJson:                                                \
-      errmsg = filename ":" STRINGIFY(line) SERIALIZER_INVALID_JSON_ERR;       \
+      errmsg = filename ":" STRINGIFY(line) SERIALIZER_INVALID_JSON_ERR "\n";  \
       break;                                                                   \
     }                                                                          \
     SK_PRINT_ERR(errmsg);                                                      \

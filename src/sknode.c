@@ -105,7 +105,7 @@ StringNode_new(const skJsonString str, skNodeType type, skJsonNode* parent)
         dupped = str;
     }
 
-    if(is_null(string_node = RawNode_new(type, NULL))) {
+    if(is_null(string_node = RawNode_new(type, parent))) {
         if(type == SK_STRING_NODE) {
             free(dupped);
         }
@@ -163,9 +163,61 @@ skObjectTuple_drop(skObjectTuple* tuple)
 {
 #ifdef SK_DBUG
     assert(is_some(tuple));
+    print_node(&tuple->value);
+    assert(tuple->value.parent->type == SK_OBJECT_NODE);
 #endif
     free(tuple->key);
     skJsonNode_drop(&tuple->value);
+}
+
+void
+print_node(skJsonNode* node)
+{
+    if(is_null(node)) {
+        printf("NULL");
+    } else {
+        switch(node->type) {
+            case SK_STRINGLIT_NODE:
+            case SK_STRING_NODE:
+                printf("String Node -> '%s', parent: ", node->data.j_string);
+                print_node(node->parent);
+                break;
+            case SK_INT_NODE:
+                printf("Int Node -> '%ld', parent: ", node->data.j_int);
+                print_node(node->parent);
+                break;
+            case SK_DOUBLE_NODE:
+                printf("Double Node -> '%fl', parent: ", node->data.j_double);
+                print_node(node->parent);
+                break;
+            case SK_BOOL_NODE:
+                printf(
+                    "Bool Node -> '%s', parent: ",
+                    (node->data.j_boolean) ? "true" : "false");
+                print_node(node->parent);
+                break;
+            case SK_NULL_NODE:
+                printf("Null Node -> NULL, parent: ");
+                print_node(node->parent);
+                break;
+            case SK_ARRAY_NODE:
+                printf("Array Node -> len '%ld', parent: ", skVec_len(node->data.j_array));
+                print_node(node->parent);
+                break;
+            case SK_OBJECT_NODE:
+                printf("Object Node -> len '%ld', parent: ", skVec_len(node->data.j_object));
+                print_node(node->parent);
+                break;
+            case SK_ERROR_NODE:
+                printf("Error Node -> '%s', parent: ", node->data.j_err);
+                print_node(node->parent);
+                break;
+            default:
+                printf("%u ...", node->type);
+                printf("Unreachable");
+        }
+    }
+    printf("\n");
 }
 
 void
@@ -191,7 +243,7 @@ skJsonNode_drop(skJsonNode* node)
         }
 
         parent = node->parent;
-        if(!is_null(parent)) {
+        if(is_some(parent)) {
             if(parent->type == SK_ARRAY_NODE) {
                 skVec_remove(parent->data.j_array, node->index, NULL);
             } else {
