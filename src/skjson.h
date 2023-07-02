@@ -164,7 +164,7 @@ PUBLIC(bool) skJson_object_sort_descending(skJson* json);
  * 'elementp' is immediatly nulled and destroyed upon successfull insertion, this is by
  * the design because it is not part of the 'json' object, if inserting fails element is
  * not destroyed and pointer is not nulled. */
-PUBLIC(bool) skJson_object_insert_element(skJson *json, const char *key, skJson **elementp, size_t index);
+PUBLIC(bool) skJson_object_insert_element(skJson *json, const char *key, const skJson *elementp, size_t index);
 /* Remove json element from 'json' object at 'index'. Return true upon success otherwise false. */
 PUBLIC(bool) skJson_object_remove_element(skJson *json, size_t index);
 /* Remove element by 'key', if the 'json' object is sorted and 'sorted' is set, search is done using binary

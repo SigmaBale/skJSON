@@ -182,6 +182,7 @@ skVec_clear(skVec* vec, FreeFn free_fn)
     }
 
     if(free_fn) {
+        /* TODO: Fix json to stop relying on not using pop */
         while(is_some(current = skVec_pop(vec))) {
             free_fn(current);
         }
@@ -205,7 +206,17 @@ skVec_get_by_key(const skVec* vec, const void* key, CmpFn cmp, bool sorted)
     void*  current;
     size_t size;
 
-    if(is_null(vec) || is_null(key)) {
+    if(is_null(vec)) {
+        return NULL;
+    }
+
+    if(is_null(key)) {
+        THROW_ERR(InvalidKey);
+        return NULL;
+    }
+
+    if(is_null(cmp)) {
+        THROW_ERR(MissingComparisonFn);
         return NULL;
     }
 
@@ -247,7 +258,12 @@ skVec_remove_by_key(skVec* vec, const void* key, CmpFn cmp, FreeFn free_fn, bool
     void*  current;
     size_t size, idx;
 
-    if(is_null(vec) || is_null(key) || is_null(cmp)) {
+    if(is_null(vec)) {
+        return false;
+    }
+
+    if(is_null(key)) {
+        THROW_ERR(InvalidKey);
         return false;
     }
 

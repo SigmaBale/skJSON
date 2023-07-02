@@ -15,8 +15,18 @@ typedef enum {
   SK_INT_NODE = 16,
   SK_DOUBLE_NODE = 32,
   SK_BOOL_NODE = 64,
-  SK_NULL_NODE = 128
+  SK_NULL_NODE = 128,
+  SK_MEMBER_NODE = 256
 } skNodeType;
+
+typedef struct skJsonNode skJsonNode;
+typedef struct skJsonMember skJsonMember;
+
+/******** Json Object Tuple **********/
+struct skJsonMember {
+  char *key;
+  skJsonNode *value;
+};
 
 /************ Json Data ***************/
 typedef union skNodeData {
@@ -27,10 +37,8 @@ typedef union skNodeData {
   skJsonDouble j_double;
   skJsonBool j_boolean;
   skJsonString j_err;
+  skJsonMember j_member;
 } skNodeData;
-
-/********** Core type ***************/
-typedef struct skJsonNode skJsonNode;
 
 struct skJsonNode {
   skNodeType type;
@@ -39,23 +47,20 @@ struct skJsonNode {
   size_t index;
 };
 
-/******** Json Object Tuple **********/
-typedef struct {
-  char *key;
-  skJsonNode value;
-} skObjectTuple;
-
 skJsonNode *RawNode_new(skNodeType type, skJsonNode *parent);
 skJsonNode *ObjectNode_new(skJsonNode *parent);
 skJsonNode *ArrayNode_new(skJsonNode *parent);
-skJsonNode *StringNode_new(skJsonString str, skNodeType type, skJsonNode *parent);
+skJsonNode *StringNode_new(skJsonString str, skNodeType type,
+                           skJsonNode *parent);
 skJsonNode *IntNode_new(skJsonInteger number, skJsonNode *parent);
 skJsonNode *DoubleNode_new(skJsonDouble number, skJsonNode *parent);
 skJsonNode *BoolNode_new(skJsonBool boolean, skJsonNode *parent);
+skJsonNode *MemberNode_new(const char *key, const skJsonNode *value,
+                           const skJsonNode *parent);
 skJsonNode *ErrorNode_new(skJsonString msg, skJsonState state,
                           skJsonNode *parent);
 void skJsonNode_drop(skJsonNode *node);
-void skObjectTuple_drop(skObjectTuple *tuple);
+void skObjectTuple_drop(skJsonMember *tuple);
 
 /* Debug */
 void print_node(skJsonNode *node);

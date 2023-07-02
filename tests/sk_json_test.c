@@ -12,12 +12,12 @@ skJsonNode*  skparse_json_string(skScanner* scanner, skJsonNode* parent);
 skJsonNode*  skparse_json_number(skScanner* scanner, skJsonNode* parent);
 skJsonNode*  skparse_json_bool(skScanner* scanner, skJsonNode* parent);
 skJsonNode*  skparse_json_null(skScanner* scanner, skJsonNode* parent);
-int          cmp_objtuples(skObjectTuple* tupleA, skObjectTuple* tupleB);
+int          cmp_objtuples(skJsonNode* a, skJsonNode* b);
 
 int
-cmp_objtuples(skObjectTuple* tupleA, skObjectTuple* tupleB)
+cmp_objtuples(skJsonNode* a, skJsonNode* b)
 {
-    return strcmp(tupleA->key, tupleB->key);
+    return strcmp(a->data.j_member.key, b->data.j_member.key);
 }
 
 skScanner* scanner;
@@ -409,31 +409,31 @@ Test(skJsonComplex, ParseObjects)
     skVec* table = json_object->data.j_object;
     cr_assert(skVec_len(table) == 5);
 
-    skObjectTuple dummytuple;
-    dummytuple.key       = "three";
-    skObjectTuple* value = skVec_get_by_key(table, &dummytuple, (CmpFn) cmp_objtuples, false);
-    cr_assert(value->value.data.j_int == 3);
-    cr_assert(value->value.type == SK_INT_NODE);
+    skJsonNode dummynode;
+    dummynode.data.j_member.key = "three";
+    skJsonNode* value = skVec_get_by_key(table, &dummynode, (CmpFn) cmp_objtuples, false);
+    cr_assert(value->data.j_member.value->data.j_int == 3);
+    cr_assert(value->data.j_member.value->type == SK_INT_NODE);
 
-    dummytuple.key = "one";
-    value          = skVec_get_by_key(table, &dummytuple, (CmpFn) cmp_objtuples, false);
-    cr_assert(value->value.data.j_int == 1);
-    cr_assert(value->value.type == SK_INT_NODE);
+    dummynode.data.j_member.key = "one";
+    value = skVec_get_by_key(table, &dummynode, (CmpFn) cmp_objtuples, false);
+    cr_assert(value->data.j_member.value->data.j_int == 1);
+    cr_assert(value->data.j_member.value->type == SK_INT_NODE);
 
-    dummytuple.key = "simple";
-    value          = skVec_get_by_key(table, &dummytuple, (CmpFn) cmp_objtuples, false);
-    cr_assert(value->value.data.j_boolean == false);
-    cr_assert(value->value.type == SK_BOOL_NODE);
+    dummynode.data.j_member.key = "simple";
+    value = skVec_get_by_key(table, &dummynode, (CmpFn) cmp_objtuples, false);
+    cr_assert(value->data.j_member.value->data.j_boolean == false);
+    cr_assert(value->data.j_member.value->type == SK_BOOL_NODE);
 
-    dummytuple.key = "two";
-    value          = skVec_get_by_key(table, &dummytuple, (CmpFn) cmp_objtuples, false);
-    cr_assert(value->value.data.j_int == 2);
-    cr_assert(value->value.type == SK_INT_NODE);
+    dummynode.data.j_member.key = "two";
+    value = skVec_get_by_key(table, &dummynode, (CmpFn) cmp_objtuples, false);
+    cr_assert(value->data.j_member.value->data.j_int == 2);
+    cr_assert(value->data.j_member.value->type == SK_INT_NODE);
 
-    dummytuple.key = "complex";
-    value          = skVec_get_by_key(table, &dummytuple, (CmpFn) cmp_objtuples, false);
-    cr_assert(value->value.data.j_boolean == true);
-    cr_assert(value->value.type == SK_BOOL_NODE);
+    dummynode.data.j_member.key = "complex";
+    value = skVec_get_by_key(table, &dummynode, (CmpFn) cmp_objtuples, false);
+    cr_assert(value->data.j_member.value->data.j_boolean == true);
+    cr_assert(value->data.j_member.value->type == SK_BOOL_NODE);
 
     skJsonNode_drop(json_object);
 }
@@ -444,6 +444,7 @@ Test(skJsonComplex, ParseWhole)
 
     skScanner_next(scanner);
     cr_assert(skScanner_peek(scanner).type == SK_LCURLY);
+
     skJsonNode* root = skJsonNode_parse(scanner, NULL);
     cr_assert(root != NULL);
     cr_assert(root->type == SK_OBJECT_NODE);
@@ -453,16 +454,14 @@ Test(skJsonComplex, ParseWhole)
 
     skVec* table = root->data.j_object;
     cr_assert_eq(skVec_len(table), 3);
-    skObjectTuple dummytuple;
-    dummytuple.key = "arr";
-    cr_assert(skVec_contains(table, &dummytuple, (CmpFn) cmp_objtuples, false));
-    dummytuple.key = "obj";
-    cr_assert(skVec_contains(table, &dummytuple, (CmpFn) cmp_objtuples, false));
-    dummytuple.key = "end";
-    cr_assert(skVec_contains(table, &dummytuple, (CmpFn) cmp_objtuples, false));
-    printf("Contains them all\n");
+    skJsonNode dummynode;
+    dummynode.data.j_member.key = "arr";
+    cr_assert(skVec_contains(table, &dummynode, (CmpFn) cmp_objtuples, false));
+    dummynode.data.j_member.key = "obj";
+    cr_assert(skVec_contains(table, &dummynode, (CmpFn) cmp_objtuples, false));
+    dummynode.data.j_member.key = "end";
+    cr_assert(skVec_contains(table, &dummynode, (CmpFn) cmp_objtuples, false));
 
-    /* TODO: FIX */
     skJsonNode_drop(root);
 }
 
@@ -505,6 +504,14 @@ TestSuite(skJsonFinal, .init = setup_final, .fini = json_teardown);
 
 Test(skJsonFinal, ParseComplete)
 {
+    unsigned char* out;
     json_final = skJson_parse(buf, n);
     cr_assert(json_final != NULL);
+    cr_assert(skJson_type(json_final) == SK_OBJECT_NODE);
+
+    out = skJson_serialize(json_final);
+
+    cr_assert(out != NULL);
+    printf("\n\n");
+    printf("%s\n\n", out);
 }

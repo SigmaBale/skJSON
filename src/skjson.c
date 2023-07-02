@@ -28,8 +28,8 @@ PRIVATE(bool) Serializer_serialize_array(Serializer* serializer, skVec* array);
 PRIVATE(bool) Serializer_serialize_object(Serializer* serializer, skVec* table);
 PRIVATE(void) drop_nonprim_elements(skJsonNode* json);
 PRIVATE(bool) array_push_node_checked(skJsonNode* json, skJsonNode* node);
-PRIVATE(int) cmp_objtuples(skObjectTuple* tupleA, skObjectTuple* tupleB);
-PRIVATE(int) cmp_objtuples_descending(skObjectTuple* tupleA, skObjectTuple* tupleB);
+PRIVATE(int) cmp_members(skJsonNode* a, skJsonNode* b);
+PRIVATE(int) cmp_members_descending(skJsonNode* a, skJsonNode* b);
 
 struct _Serializer {
     unsigned char* buffer;
@@ -58,6 +58,8 @@ skJson_parse(char* buff, size_t bufsize)
     scanner = skScanner_new(buff, bufsize);
     if(is_null(scanner)) {
         return NULL;
+    } else {
+        skScanner_next(scanner); /* Fetch first token */
     }
 
     /* Construct the parse tree */
@@ -169,7 +171,7 @@ drop_nonprim_elements(skJsonNode* json) {
             skVec_drop(json->data.j_array, (FreeFn) skJsonNode_drop);
             break;
         case SK_OBJECT_NODE:
-            skVec_drop(json->data.j_object, (FreeFn) skObjectTuple_drop);
+            skVec_drop(json->data.j_object, (FreeFn) skJsonNode_drop);
             break;
         default:
             break;
@@ -1068,13 +1070,13 @@ skJson_object_sort_ascending(skJsonNode* json)
         return false;
     }
 
-    return skVec_sort(json->data.j_object, (CmpFn) cmp_objtuples);
+    return skVec_sort(json->data.j_object, (CmpFn) cmp_members);
 }
 
 PRIVATE(int)
-cmp_objtuples(skObjectTuple* tupleA, skObjectTuple* tupleB)
+cmp_members(skJsonNode* a, skJsonNode* b)
 {
-    return strcmp(tupleA->key, tupleB->key);
+    return strcmp(a->data.j_member.key, b->data.j_member.key);
 }
 
 PUBLIC(bool)
@@ -1085,15 +1087,15 @@ skJson_object_sort_descending(skJsonNode* json)
         return false;
     }
 
-    return skVec_sort(json->data.j_object, (CmpFn) cmp_objtuples_descending);
+    return skVec_sort(json->data.j_object, (CmpFn) cmp_members_descending);
 }
 
 PRIVATE(int)
-cmp_objtuples_descending(skObjectTuple* tupleA, skObjectTuple* tupleB)
+cmp_members_descending(skJsonNode* a, skJsonNode* b)
 {
     int cmp;
 
-    if((cmp = cmp_objtuples(tupleA, tupleB)) < 0) {
+    if((cmp = cmp_members(a, b)) < 0) {
         return 1;
     } else if(cmp > 0) {
         return -1;
@@ -1103,24 +1105,22 @@ cmp_objtuples_descending(skObjectTuple* tupleA, skObjectTuple* tupleB)
 }
 
 PUBLIC(bool)
-skJson_object_insert_element(skJsonNode* json, const char* key, skJsonNode** elementp, size_t index)
+skJson_object_insert_element(skJsonNode* json, const char* key, const skJsonNode* elementp, size_t index)
 {
-    skObjectTuple tuple;
+    skJsonNode* member_node;
 
     if(!valid_with_type(json, SK_OBJECT_NODE)) {
         THROW_ERR(WrongNodeType);
         return false;
     }
 
-    tuple.key = discard_const(key);
-    memcpy(&tuple.value, *elementp, sizeof(skJsonNode));
-
-
-    if(!skVec_insert(json->data.j_object, &tuple, index)) {
+    if(is_null(member_node = MemberNode_new(key, elementp, json))) {
         return false;
-    } else {
-        free(*elementp);
-        *elementp = NULL;
+    }
+
+    if(!skVec_insert(json->data.j_object, member_node, index)) {
+        free(member_node);
+        return false;
     }
 
     return true;
@@ -1140,20 +1140,19 @@ skJson_object_remove_element(skJsonNode* json, size_t index)
 PUBLIC(bool)
 skJson_object_remove_element_by_key(skJsonNode* json, const char* key, bool sorted, bool descending)
 {
-    skObjectTuple dummytuple;
+    skJsonNode dummynode;
 
     if(!valid_with_type(json, SK_OBJECT_NODE)) {
         THROW_ERR(WrongNodeType);
         return false;
     }
 
-    dummytuple.key = discard_const(key);
-
+    dummynode.data.j_member.key = discard_const(key);
 
     return skVec_remove_by_key(
             json->data.j_object,
-            &dummytuple,
-            (descending) ? (CmpFn) cmp_objtuples_descending : (CmpFn) cmp_objtuples,
+            &dummynode,
+            (descending) ? (CmpFn) cmp_members_descending : (CmpFn) cmp_members,
             (FreeFn) skJsonNode_drop,
             sorted);
 }
@@ -1176,19 +1175,19 @@ skJson_object_get_element_by_key(
         bool sorted,
         bool descending)
 {
-    skObjectTuple dummytuple;
+    skJsonNode dummynode;
 
     if(!valid_with_type(json, SK_OBJECT_NODE)) {
         THROW_ERR(WrongNodeType);
         return NULL;
     }
 
-    dummytuple.key = discard_const(key);
+    dummynode.data.j_member.key = discard_const(key);
 
     return skVec_get_by_key(
             json->data.j_object,
-            &dummytuple,
-            (descending) ? (CmpFn) cmp_objtuples_descending : (CmpFn) cmp_objtuples,
+            &dummynode,
+            (descending) ? (CmpFn) cmp_members_descending : (CmpFn) cmp_members,
             sorted);
 }
 
@@ -1206,18 +1205,18 @@ skJson_object_len(const skJsonNode* json)
 PUBLIC(bool)
 skJson_object_contains(const skJsonNode* json, const char* key, bool sorted, bool descending)
 {
-    skObjectTuple dummytuple;
+    skJsonNode dummynode;
 
     if(!valid_with_type(json, SK_OBJECT_NODE)) {
         THROW_ERR(WrongNodeType);
         return false;
     }
 
-    dummytuple.key = discard_const(key);
+    dummynode.data.j_member.key = discard_const(key);
 
     return skVec_contains(json->data.j_object,
-            &dummytuple,
-            (descending) ? (CmpFn) cmp_objtuples_descending : (CmpFn) cmp_objtuples,
+            &dummynode,
+            (descending) ? (CmpFn) cmp_members_descending : (CmpFn) cmp_members,
             sorted);
 }
 
@@ -1229,7 +1228,7 @@ skJson_object_clear(skJson* json)
         return;
     }
 
-    skVec_clear(json->data.j_object, (FreeFn) skObjectTuple_drop);
+    skVec_clear(json->data.j_object, (FreeFn) skJsonNode_drop);
 }
 
 PRIVATE(Serializer)
@@ -1360,7 +1359,9 @@ Serializer_offset_update(Serializer* serializer)
     assert(is_some(serializer));
     assert(is_some(serializer->buffer));
 #endif
+    printf("Before updating offset -> %ld\n", serializer->offset);
     serializer->offset += strlen((char*)serializer->buffer + serializer->offset);
+    printf("After updating offset -> %ld\n", serializer->offset);
 }
 
 PUBLIC(unsigned char*)
@@ -1437,6 +1438,7 @@ skJson_serialize(skJsonNode* json)
         return NULL;
     }
 
+    printf("Total len in bytes -> %ld\n", strlen((char*)serializer.buffer));
     return serializer.buffer;
 }
 
@@ -1462,6 +1464,7 @@ Serializer_serialize(Serializer* serializer, skJsonNode* json)
         case SK_ARRAY_NODE:
             return Serializer_serialize_array(serializer, json->data.j_array);
         case SK_OBJECT_NODE:
+            printf("Serializing object\n");
             return Serializer_serialize_object(serializer, json->data.j_object);
         case SK_ERROR_NODE:
         default:
@@ -1518,7 +1521,7 @@ Serializer_serialize_string(Serializer *serializer, const char* str)
 #endif
 
     len = strlen(str) + sizeof("\"\"");
-    out = Serializer_buffer_ensure(serializer, len);
+    out = Serializer_buffer_ensure(serializer, 1 + len + sizeof("\""));
 
     if(is_null(out)) {
         return false;
@@ -1529,6 +1532,7 @@ Serializer_serialize_string(Serializer *serializer, const char* str)
     out[len + 1] = '\"';
     out[len + 2] = '\0';
 
+    printf("Offset is %ld\n", serializer->offset);
     Serializer_offset_update(serializer);
 
     return true;
@@ -1548,15 +1552,19 @@ Serializer_serialize_bool(Serializer *serializer, bool boolean)
         if(is_null(out = Serializer_buffer_ensure(serializer, 5))) {
             return false;
         }
-        strcat((char*)out, "true");
+        strcpy((char*)out, "true");
     } else {
         if(is_null(out = Serializer_buffer_ensure(serializer, 6))) {
             return false;
         }
-        strcat((char*)out, "false");
+        strcpy((char*)out, "false");
     }
 
     Serializer_offset_update(serializer);
+    printf("%s\n", serializer->buffer);
+#ifdef SK_DBUG
+    assert(strcmp((char*)serializer->buffer, "{\"verifiable_password_authentication\": false") == 0);
+#endif
     return true;
 }
 
@@ -1573,7 +1581,7 @@ Serializer_serialize_null(Serializer *serializer)
     if(is_null(out = Serializer_buffer_ensure(serializer, 5))) {
         return false;
     }
-    strcat((char*)out, "null");
+    strcpy((char*)out, "null");
     Serializer_offset_update(serializer);
     return true;
 }
@@ -1635,7 +1643,7 @@ PRIVATE(bool)
 Serializer_serialize_object(Serializer* serializer, skVec* table)
 {
     unsigned char* out;
-    skObjectTuple* tuple;
+    skJsonNode* member_node;
     size_t len, i;
 
 #ifdef SK_DBUG
@@ -1653,12 +1661,13 @@ Serializer_serialize_object(Serializer* serializer, skVec* table)
     serializer->depth++;
 
     len = skVec_len(table);
+    printf("table len is -> %ld\n", len);
     for(i = 0; i < len; i++) {
-        tuple = skVec_index(table, i);
+        member_node = skVec_index(table, i);
 #ifdef SK_DBUG
-        assert(is_some(tuple));
+        assert(is_some(member_node));
 #endif
-        if(!Serializer_serialize_string(serializer, tuple->key)) {
+        if(!Serializer_serialize_string(serializer, member_node->data.j_member.key)) {
             return false;
         }
 
@@ -1666,11 +1675,10 @@ Serializer_serialize_object(Serializer* serializer, skVec* table)
             return false;
         }
 
-        *out++ = ':';
-        *out = '\0';
-        serializer->offset += 2;
+        *out = ':';
+        serializer->offset+=2;
 
-        if(!Serializer_serialize(serializer, &tuple->value)) {
+        if(!Serializer_serialize(serializer, member_node->data.j_member.value)) {
             return false;
         }
 

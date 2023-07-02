@@ -37,7 +37,7 @@ ObjectNode_new(skJsonNode* parent)
         return NULL;
     }
 
-    object_node->data.j_object = skVec_new(sizeof(skObjectTuple));
+    object_node->data.j_object = skVec_new(sizeof(skJsonNode));
 
     if(is_null(object_node->data.j_object)) {
         return NULL;
@@ -158,16 +158,19 @@ BoolNode_new(bool boolean, skJsonNode* parent)
     return bool_node;
 }
 
-void
-skObjectTuple_drop(skObjectTuple* tuple)
+skJsonNode*
+MemberNode_new(const char* key, const skJsonNode* value, const skJsonNode* parent)
 {
-#ifdef SK_DBUG
-    assert(is_some(tuple));
-    print_node(&tuple->value);
-    assert(tuple->value.parent->type == SK_OBJECT_NODE);
-#endif
-    free(tuple->key);
-    skJsonNode_drop(&tuple->value);
+    skJsonNode* member_node;
+
+    if(is_null(member_node = RawNode_new(SK_MEMBER_NODE, discard_const(parent)))) {
+        return NULL;
+    }
+
+    member_node->data.j_member.key   = discard_const(key);
+    member_node->data.j_member.value = discard_const(value);
+
+    return member_node;
 }
 
 void
@@ -179,42 +182,37 @@ print_node(skJsonNode* node)
         switch(node->type) {
             case SK_STRINGLIT_NODE:
             case SK_STRING_NODE:
-                printf("String Node -> '%s', parent: ", node->data.j_string);
-                print_node(node->parent);
+                printf("String Node -> '%s'", node->data.j_string);
                 break;
             case SK_INT_NODE:
-                printf("Int Node -> '%ld', parent: ", node->data.j_int);
-                print_node(node->parent);
+                printf("Int Node -> '%ld'", node->data.j_int);
                 break;
             case SK_DOUBLE_NODE:
-                printf("Double Node -> '%fl', parent: ", node->data.j_double);
-                print_node(node->parent);
+                printf("Double Node -> '%fl'", node->data.j_double);
                 break;
             case SK_BOOL_NODE:
-                printf(
-                    "Bool Node -> '%s', parent: ",
-                    (node->data.j_boolean) ? "true" : "false");
-                print_node(node->parent);
+                printf("Bool Node -> '%s'", (node->data.j_boolean) ? "true" : "false");
                 break;
             case SK_NULL_NODE:
-                printf("Null Node -> NULL, parent: ");
-                print_node(node->parent);
+                printf("Null Node -> NULL");
                 break;
             case SK_ARRAY_NODE:
-                printf("Array Node -> len '%ld', parent: ", skVec_len(node->data.j_array));
-                print_node(node->parent);
+                printf("Array Node -> len '%ld'", skVec_len(node->data.j_array));
                 break;
             case SK_OBJECT_NODE:
-                printf("Object Node -> len '%ld', parent: ", skVec_len(node->data.j_object));
-                print_node(node->parent);
+                printf("Object Node -> len '%ld'", skVec_len(node->data.j_object));
                 break;
             case SK_ERROR_NODE:
-                printf("Error Node -> '%s', parent: ", node->data.j_err);
-                print_node(node->parent);
+                printf("Error Node -> '%s'", node->data.j_err);
+                break;
+            case SK_MEMBER_NODE:
+                printf("Member Node -> '%s' : ", node->data.j_member.key);
+                print_node(node->data.j_member.value);
                 break;
             default:
                 printf("%u ...", node->type);
                 printf("Unreachable");
+                break;
         }
     }
     printf("\n");
@@ -228,7 +226,7 @@ skJsonNode_drop(skJsonNode* node)
     if(!is_null(node)) {
         switch(node->type) {
             case SK_OBJECT_NODE:
-                skVec_drop(node->data.j_object, (FreeFn) skObjectTuple_drop);
+                skVec_drop(node->data.j_object, (FreeFn) skJsonNode_drop);
                 break;
             case SK_ARRAY_NODE:
                 skVec_drop(node->data.j_array, (FreeFn) skJsonNode_drop);
@@ -238,6 +236,11 @@ skJsonNode_drop(skJsonNode* node)
                 break;
             case SK_ERROR_NODE:
                 free(node->data.j_err);
+                break;
+            case SK_MEMBER_NODE:
+                skJsonNode_drop(node->data.j_member.value);
+                free(node->data.j_member.key);
+                break;
             default:
                 break;
         }
@@ -246,13 +249,14 @@ skJsonNode_drop(skJsonNode* node)
         if(is_some(parent)) {
             if(parent->type == SK_ARRAY_NODE) {
                 skVec_remove(parent->data.j_array, node->index, NULL);
+            } else if(parent->type == SK_OBJECT_NODE) {
+                skVec_remove(parent->data.j_object, node->index, NULL);
             } else {
 #ifdef SK_DBUG
-                assert(parent->type == SK_OBJECT_NODE);
+                assert(parent->type == SK_MEMBER_NODE);
 #endif
-                skVec_remove(parent->data.j_object, node->index, NULL);
+                free(node);
             }
-
         } else {
             free(node);
         }
