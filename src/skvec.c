@@ -15,8 +15,7 @@ struct skVec {
     size_t         len;
 };
 
-skVec*
-skVec_new(const size_t ele_size)
+skVec* skVec_new(const size_t ele_size)
 {
     skVec* vec;
 
@@ -34,8 +33,7 @@ skVec_new(const size_t ele_size)
     return vec;
 }
 
-skVec*
-skVec_with_capacity(const size_t ele_size, const size_t capacity)
+skVec* skVec_with_capacity(const size_t ele_size, const size_t capacity)
 {
     skVec* vec;
     void*  allocation;
@@ -57,8 +55,7 @@ skVec_with_capacity(const size_t ele_size, const size_t capacity)
     return vec;
 }
 
-static int
-_skVec_maybe_grow(skVec* vec)
+static int _skVec_maybe_grow(skVec* vec)
 {
     size_t amount;
     size_t cap;
@@ -85,14 +82,12 @@ _skVec_maybe_grow(skVec* vec)
     return 0;
 }
 
-static void*
-_skVec_get(const skVec* vec, const size_t index)
+static void* _skVec_get(const skVec* vec, const size_t index)
 {
     return (vec->allocation + (index * vec->ele_size));
 }
 
-void*
-skVec_index_unsafe(const skVec* vec, const size_t index)
+void* skVec_index_unsafe(const skVec* vec, const size_t index)
 {
     if(is_null(vec)) {
         return NULL;
@@ -106,8 +101,7 @@ skVec_index_unsafe(const skVec* vec, const size_t index)
     return _skVec_get(vec, index);
 }
 
-bool
-skVec_insert_non_contiguous(skVec* vec, const void* element, const size_t index)
+bool skVec_insert_non_contiguous(skVec* vec, const void* element, const size_t index)
 {
     void* hole;
 
@@ -126,8 +120,7 @@ skVec_insert_non_contiguous(skVec* vec, const void* element, const size_t index)
     return true;
 }
 
-void*
-skVec_front(const skVec* vec)
+void* skVec_front(const skVec* vec)
 {
     if(is_null(vec) || vec->len == 0) {
         return NULL;
@@ -136,8 +129,7 @@ skVec_front(const skVec* vec)
     return _skVec_get(vec, 0);
 }
 
-void*
-skVec_inner_unsafe(const skVec* vec)
+void* skVec_inner_unsafe(const skVec* vec)
 {
     if(is_null(vec)) {
         return NULL;
@@ -145,8 +137,7 @@ skVec_inner_unsafe(const skVec* vec)
     return vec->allocation;
 }
 
-void*
-skVec_back(const skVec* vec)
+void* skVec_back(const skVec* vec)
 {
     if(is_null(vec) || vec->len == 0) {
         return NULL;
@@ -155,8 +146,7 @@ skVec_back(const skVec* vec)
     return _skVec_get(vec, vec->len - 1);
 }
 
-bool
-skVec_push(skVec* vec, const void* element)
+bool skVec_push(skVec* vec, const void* element)
 {
     if(is_null(vec)) {
         return false;
@@ -172,19 +162,17 @@ skVec_push(skVec* vec, const void* element)
     return true;
 }
 
-void
-skVec_clear(skVec* vec, FreeFn free_fn)
+void skVec_clear(skVec* vec, FreeFn free_fn)
 {
-    void* current;
+    size_t len;
 
     if(is_null(vec) || is_null(vec->allocation)) {
         return;
     }
 
     if(free_fn) {
-        /* TODO: Fix json to stop relying on not using pop */
-        while(is_some(current = skVec_pop(vec))) {
-            free_fn(current);
+        for(len = vec->len; len--;) {
+            free_fn(_skVec_get(vec, len));
         }
     }
 
@@ -194,14 +182,12 @@ skVec_clear(skVec* vec, FreeFn free_fn)
     vec->len        = 0;
 }
 
-bool
-skVec_contains(const skVec* vec, const void* key, CmpFn cmp, bool sorted)
+bool skVec_contains(const skVec* vec, const void* key, CmpFn cmp, bool sorted)
 {
     return is_some(skVec_get_by_key(vec, key, cmp, sorted));
 }
 
-void*
-skVec_get_by_key(const skVec* vec, const void* key, CmpFn cmp, bool sorted)
+void* skVec_get_by_key(const skVec* vec, const void* key, CmpFn cmp, bool sorted)
 {
     void*  current;
     size_t size;
@@ -236,8 +222,7 @@ skVec_get_by_key(const skVec* vec, const void* key, CmpFn cmp, bool sorted)
     return NULL;
 }
 
-bool
-skVec_sort(skVec* vec, CmpFn cmp)
+bool skVec_sort(skVec* vec, CmpFn cmp)
 {
     if(is_null(vec)) {
         return false;
@@ -252,8 +237,7 @@ skVec_sort(skVec* vec, CmpFn cmp)
     return true;
 }
 
-bool
-skVec_remove_by_key(skVec* vec, const void* key, CmpFn cmp, FreeFn free_fn, bool sorted)
+bool skVec_remove_by_key(skVec* vec, const void* key, CmpFn cmp, FreeFn free_fn, bool sorted)
 {
     void*  current;
     size_t size, idx;
@@ -291,8 +275,7 @@ skVec_remove_by_key(skVec* vec, const void* key, CmpFn cmp, FreeFn free_fn, bool
     return false;
 }
 
-void*
-skVec_index(const skVec* vec, const size_t index)
+void* skVec_index(const skVec* vec, const size_t index)
 {
     if(is_null(vec)) {
         return NULL;
@@ -306,8 +289,7 @@ skVec_index(const skVec* vec, const size_t index)
     return _skVec_get(vec, index);
 }
 
-void*
-skVec_pop(skVec* vec)
+void* skVec_pop(skVec* vec)
 {
     void* retval;
 
@@ -325,8 +307,7 @@ skVec_pop(skVec* vec)
     return retval;
 }
 
-size_t
-skVec_len(const skVec* vec)
+size_t skVec_len(const skVec* vec)
 {
     if(is_null(vec)) {
         return 0;
@@ -334,8 +315,7 @@ skVec_len(const skVec* vec)
     return vec->len;
 }
 
-size_t
-skVec_capacity(const skVec* vec)
+size_t skVec_capacity(const skVec* vec)
 {
     if(is_null(vec)) {
         return 0;
@@ -343,8 +323,7 @@ skVec_capacity(const skVec* vec)
     return vec->capacity;
 }
 
-size_t
-skVec_element_size(const skVec* vec)
+size_t skVec_element_size(const skVec* vec)
 {
     if(is_null(vec)) {
         return 0;
@@ -352,8 +331,7 @@ skVec_element_size(const skVec* vec)
     return vec->ele_size;
 }
 
-bool
-skVec_insert(skVec* vec, const void* element, const size_t index)
+bool skVec_insert(skVec* vec, const void* element, const size_t index)
 {
     unsigned char* hole;
     size_t         elsize;
@@ -387,8 +365,7 @@ skVec_insert(skVec* vec, const void* element, const size_t index)
     return true;
 }
 
-bool
-skVec_remove(skVec* vec, const size_t index, FreeFn free_fn)
+bool skVec_remove(skVec* vec, const size_t index, FreeFn free_fn)
 {
     unsigned char* hole;
     size_t         elsize;
@@ -413,19 +390,18 @@ skVec_remove(skVec* vec, const size_t index, FreeFn free_fn)
     return true;
 }
 
-static void
-_skVec_drop_elements(skVec* vec, FreeFn free_fn)
+static void _skVec_drop_elements(skVec* vec, FreeFn free_fn)
 {
     size_t size;
-
-    size = vec->len;
-    while(size--) {
-        free_fn(_skVec_get(vec, size));
+    for(size = vec->len; size > 0; size--) {
+        free_fn(_skVec_get(vec, size - 1));
     }
+#ifdef SK_DBUG
+    vec->len = size;
+#endif
 }
 
-void
-skVec_drop(skVec* vec, FreeFn free_fn)
+void skVec_drop(skVec* vec, FreeFn free_fn)
 {
     if(is_null(vec)) {
         return;

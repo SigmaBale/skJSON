@@ -7,6 +7,6 @@
 
 bool skJsonString_isvalid(const skStrSlice *slice);
 
-skJsonNode *skJsonNode_parse(skScanner *scanner, skJsonNode *parent);
+skJson skJsonNode_parse(skScanner *scanner, skJson *parent, bool* oom);
 
 #endif

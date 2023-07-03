@@ -19,16 +19,14 @@ typedef enum {
   SK_MEMBER_NODE = 256
 } skNodeType;
 
-typedef struct skJsonNode skJsonNode;
+typedef struct _skJsonNode skJson;
 typedef struct skJsonMember skJsonMember;
 
-/******** Json Object Tuple **********/
-struct skJsonMember {
-  char *key;
-  skJsonNode *value;
-};
+typedef struct {
+  unsigned char *ptr;
+  skNodeType type;
+} skArena;
 
-/************ Json Data ***************/
 typedef union skNodeData {
   skVec *j_object;
   skVec *j_array;
@@ -37,32 +35,30 @@ typedef union skNodeData {
   skJsonDouble j_double;
   skJsonBool j_boolean;
   skJsonString j_err;
-  skJsonMember j_member;
 } skNodeData;
 
-struct skJsonNode {
+struct _skJsonNode {
   skNodeType type;
   skNodeData data;
-  skJsonNode *parent;
-  size_t index;
+  skArena parent_arena;
 };
 
-skJsonNode *RawNode_new(skNodeType type, skJsonNode *parent);
-skJsonNode *ObjectNode_new(skJsonNode *parent);
-skJsonNode *ArrayNode_new(skJsonNode *parent);
-skJsonNode *StringNode_new(skJsonString str, skNodeType type,
-                           skJsonNode *parent);
-skJsonNode *IntNode_new(skJsonInteger number, skJsonNode *parent);
-skJsonNode *DoubleNode_new(skJsonDouble number, skJsonNode *parent);
-skJsonNode *BoolNode_new(skJsonBool boolean, skJsonNode *parent);
-skJsonNode *MemberNode_new(const char *key, const skJsonNode *value,
-                           const skJsonNode *parent);
-skJsonNode *ErrorNode_new(skJsonString msg, skJsonState state,
-                          skJsonNode *parent);
-void skJsonNode_drop(skJsonNode *node);
-void skObjectTuple_drop(skJsonMember *tuple);
+typedef struct {
+  skJson value;
+  char *key;
+} skObjTuple;
 
-/* Debug */
-void print_node(skJsonNode *node);
+skJson RawNode_new(skNodeType type, const skJson *parent);
+skJson ObjectNode_new(const skJson *parent);
+skJson ArrayNode_new(const skJson *parent);
+skJson StringNode_new(skJsonString str, skNodeType type, const skJson *parent);
+skJson IntNode_new(skJsonInteger number, const skJson *parent);
+skJson DoubleNode_new(skJsonDouble number, const skJson *parent);
+skJson BoolNode_new(skJsonBool boolean, const skJson *parent);
+skJson MemberNode_new(const char *key, const skJson *value,
+                      const skJson *parent);
+skJson ErrorNode_new(skJsonString msg, skJsonState state, const skJson *parent);
+void skJsonNode_drop(skJson *node);
+void skObjTuple_drop(skObjTuple *tuple);
 
 #endif

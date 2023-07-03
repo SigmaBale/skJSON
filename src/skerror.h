@@ -16,6 +16,7 @@
 #define INVALID_VAL_ERR " invalid value provided"
 #define SERIALIZER_NUMBER_ERR " errored while serializing number"
 #define SERIALIZER_INVALID_JSON_ERR " trying to serialize invalid json element"
+#define UNREACHABLE_ERR " unreachable code!"
 
 /* Warnings text */
 #define OVERFLOW_WARN " detected overflow"
@@ -33,7 +34,8 @@ enum {
   InvalidString = 9,
   InvalidValue = 10,
   SerializerNumberError = 11,
-  SerializerInvalidJson = 12
+  SerializerInvalidJson = 12,
+  UnreachableCode = 13
 };
 
 /* Possible Warnings */
@@ -85,6 +87,9 @@ enum { OverflowDetected = 128 };
       break;                                                                   \
     case SerializerInvalidJson:                                                \
       errmsg = filename ":" STRINGIFY(line) SERIALIZER_INVALID_JSON_ERR "\n";  \
+      break;                                                                   \
+    case UnreachableCode:                                                      \
+      errmsg = filename ":" STRINGIFY(line) UNREACHABLE_ERR "\n";              \
       break;                                                                   \
     }                                                                          \
     SK_PRINT_ERR(errmsg);                                                      \
