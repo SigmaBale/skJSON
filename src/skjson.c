@@ -93,7 +93,9 @@ PUBLIC(const char*) skJson_error(const skJson* json)
     if(valid_with_type(json, SK_ERROR_NODE)) {
         return json->data.j_err;
     } else {
+#ifdef SK_ERRMSG
         THROW_ERR(WrongNodeType);
+#endif
         return NULL;
     }
 }
@@ -108,7 +110,7 @@ PUBLIC(void) skJson_drop(skJson* json)
 {
     void* arena;
     skJson null_node;
-    skJson* old;
+    skJson* old_node;
     size_t  idx;
 
     if(is_null(json) || json->type == SK_DROPPED_NODE) {
@@ -117,6 +119,9 @@ PUBLIC(void) skJson_drop(skJson* json)
 
     if(is_some(arena = json->parent_arena.ptr)) {
         switch(json->parent_arena.type) {
+            /* In case we are directly dropping value of the array_node, replace
+             * it with null node instead. Actually removing the entry from array node
+             * is done using array node functions defined on it. */
             case SK_ARRAY_NODE:
                 idx = ((char*) json - (char*) skVec_inner_unsafe((skVec*) arena)) 
                     / sizeof(skJson);
@@ -124,31 +129,43 @@ PUBLIC(void) skJson_drop(skJson* json)
                 null_node = RawNode_new(SK_NULL_NODE, NULL);
                 copylink(&null_node, json);
 
-                old = skVec_index((skVec*) arena, idx);
-                skJsonNode_drop(old);
-                *old = null_node;
+                old_node = skVec_index((skVec*) arena, idx);
+                skJsonNode_drop(old_node);
+                memcpy(old_node, &null_node, sizeof(skJson));
+
                 break;
             case SK_OBJECT_NODE:
+                /* If this 'json' node is a child of object node then replace it
+                 * with null node instead, in order to remove an entry from object node
+                 * you must use the functions defined for the object node. That is the
+                 * only way to soundly drop the key/value pair and preserve json validity. */
                 idx = ((char*) json - (char*) skVec_inner_unsafe((skVec*) arena))
                     / sizeof(skObjTuple);
-#ifdef SK_DBUG
-                assert(skVec_remove((skVec*) arena, idx, (FreeFn) skObjTuple_drop));
-#else
-                skVec_remove((skVec*) arena, idx, (FreeFn) skObjTuple_drop);
-#endif
+
+                null_node = RawNode_new(SK_NULL_NODE, NULL);
+                copylink(&null_node, json);
+
+                /* Returning skObjTuple but we need only node so auto-cast
+                 * it into old_node and drop it. */
+                old_node = skVec_index((skVec*) arena, idx);
+                skJsonNode_drop(old_node);
+                memcpy(old_node, &null_node, sizeof(skJson));
+
                 break;
             default:
 #ifdef SK_DBUG
                 assert(false);
 #endif
+#ifdef SK_ERRMSG
                 THROW_ERR(UnreachableCode);
+#endif
                 break;
         }
     } else {
+        /* If node does not have a parent, drop it and set its type. */
         skJsonNode_drop(json);
+        json->type = SK_DROPPED_NODE;
     }
-
-    json->type = SK_DROPPED_NODE;
 }
 
 PUBLIC(int) skJson_type(const skJson* json)
@@ -164,7 +181,9 @@ PUBLIC(bool) skJson_has_parent(const skJson* json)
 PUBLIC(long int) skJson_integer_value(const skJson* json, int* cntrl)
 {
     if(!valid_with_type(json, SK_INT_NODE)) {
+#ifdef SK_ERRMSG
         THROW_ERR(WrongNodeType);
+#endif
         *cntrl = -1;
         return 0;
     }
@@ -176,7 +195,9 @@ PUBLIC(long int) skJson_integer_value(const skJson* json, int* cntrl)
 PUBLIC(double) skJson_double_value(const skJson* json, int* cntrl)
 {
     if(!valid_with_type(json, SK_DOUBLE_NODE)) {
+#ifdef SK_ERRMSG
         THROW_ERR(WrongNodeType);
+#endif
         *cntrl = -1;
         return 0;
     }
@@ -188,7 +209,9 @@ PUBLIC(double) skJson_double_value(const skJson* json, int* cntrl)
 PUBLIC(bool) skJson_bool_value(const skJson* json)
 {
     if(!valid_with_type(json, SK_BOOL_NODE)) {
+#ifdef SK_ERRMSG
         THROW_ERR(WrongNodeType);
+#endif
         return -1;
     }
 
@@ -198,7 +221,9 @@ PUBLIC(bool) skJson_bool_value(const skJson* json)
 PUBLIC(char*) skJson_string_value(const skJson* json)
 {
     if(!valid_with_type(json, SK_STRING_NODE) && json->type != SK_STRINGLIT_NODE) {
+#ifdef SK_ERRMSG
         THROW_ERR(WrongNodeType);
+#endif
         return NULL;
     }
 
@@ -225,7 +250,9 @@ PRIVATE(void) drop_nonprim_elements(skJson* json)
 PUBLIC(skJson*) skJson_transform_into_int(skJson* json, long int n)
 {
     if(is_null(json)) {
+#ifdef SK_ERRMSG
         THROW_ERR(WrongNodeType);
+#endif
         return NULL;
     }
 
@@ -241,7 +268,9 @@ PUBLIC(skJson*) skJson_transform_into_int(skJson* json, long int n)
 PUBLIC(skJson*) skJson_transform_into_double(skJson* json, double n)
 {
     if(is_null(json)) {
+#ifdef SK_ERRMSG
         THROW_ERR(WrongNodeType);
+#endif
         return NULL;
     }
 
@@ -256,7 +285,9 @@ PUBLIC(skJson*) skJson_transform_into_double(skJson* json, double n)
 PUBLIC(skJson*) skJson_transform_into_bool(skJson* json, bool boolean)
 {
     if(is_null(json)) {
+#ifdef SK_ERRMSG
         THROW_ERR(WrongNodeType);
+#endif
         return NULL;
     }
 
@@ -273,14 +304,18 @@ PUBLIC(skJson*) skJson_transform_into_stringlit(skJson* json, const char* string
     skStrSlice slice;
 
     if(is_null(json)) {
+#ifdef SK_ERRMSG
         THROW_ERR(WrongNodeType);
+#endif
         return NULL;
     }
 
     slice = skSlice_new(string_ref, strlen(string_ref) - 1);
 
     if(!skJsonString_isvalid(&slice)) {
+#ifdef SK_ERRMSG
         THROW_ERR(InvalidString);
+#endif
         return NULL;
     }
 
@@ -298,14 +333,18 @@ PUBLIC(skJson*) skJson_transform_into_string(skJson* json, const char* string)
     char*      new_str;
 
     if(is_null(json)) {
+#ifdef SK_ERRMSG
         THROW_ERR(WrongNodeType);
+#endif
         return NULL;
     }
 
     slice = skSlice_new(string, strlen(string) - 1);
 
     if(!skJsonString_isvalid(&slice)) {
+#ifdef SK_ERRMSG
         THROW_ERR(InvalidString);
+#endif
         return NULL;
     }
 
@@ -328,7 +367,9 @@ PUBLIC(skJson*) skJson_transform_into_empty_array(skJson* json)
     skVec* array;
 
     if(is_null(json)) {
+#ifdef SK_ERRMSG
         THROW_ERR(WrongNodeType);
+#endif
         return NULL;
     }
 
@@ -351,7 +392,9 @@ PUBLIC(skJson*) skJson_transform_into_empty_object(skJson* json)
     skVec* table;
 
     if(is_null(json)) {
+#ifdef SK_ERRMSG
         THROW_ERR(WrongNodeType);
+#endif
         return NULL;
     }
 
@@ -375,7 +418,9 @@ PUBLIC(skJson) skJson_integer_new(long int n)
 PUBLIC(bool) skJson_integer_set(skJson* json, long int n)
 {
     if(!valid_with_type(json, SK_INT_NODE)) {
+#ifdef SK_ERRMSG
         THROW_ERR(WrongNodeType);
+#endif
         return false;
     }
 
@@ -391,7 +436,9 @@ PUBLIC(skJson) skJson_double_new(double n)
 PUBLIC(bool) skJson_double_set(skJson* json, double n)
 {
     if(!valid_with_type(json, SK_DOUBLE_NODE)) {
+#ifdef SK_ERRMSG
         THROW_ERR(WrongNodeType);
+#endif
         return false;
     }
 
@@ -407,7 +454,9 @@ PUBLIC(skJson) skJson_bool_new(bool boolean)
 PUBLIC(bool) skJson_bool_set(skJson* json, bool boolean)
 {
     if(!valid_with_type(json, SK_BOOL_NODE)) {
+#ifdef SK_ERRMSG
         THROW_ERR(WrongNodeType);
+#endif
         return false;
     }
 
@@ -432,7 +481,9 @@ PRIVATE(skJson) skJson_string_new_internal(const char* string, skNodeType type, 
     slice = skSlice_new(string, strlen(string) - 1);
 
     if(!skJsonString_isvalid(&slice)) {
+#ifdef SK_ERRMSG
         THROW_ERR(InvalidString);
+#endif
         return string_node;
     }
 
@@ -450,14 +501,18 @@ PUBLIC(bool) skJson_string_set(skJson* json, const char* string)
     skStrSlice slice;
 
     if(!valid_with_type(json, SK_STRING_NODE)) {
+#ifdef SK_ERRMSG
         THROW_ERR(WrongNodeType);
+#endif
         return false;
     }
 
     slice = skSlice_new(string, strlen(string) - 1);
 
     if(!skJsonString_isvalid(&slice)) {
+#ifdef SK_ERRMSG
         THROW_ERR(InvalidString);
+#endif
         return false;
     }
 
@@ -482,14 +537,18 @@ PUBLIC(bool) skJson_stringlit_set(skJson* json, const char* string)
     skStrSlice slice;
 
     if(!valid_with_type(json, SK_STRINGLIT_NODE)) {
+#ifdef SK_ERRMSG
         THROW_ERR(WrongNodeType);
+#endif
         return false;
     }
 
     slice = skSlice_new(string, strlen(string) - 1);
 
     if(!skJsonString_isvalid(&slice)) {
+#ifdef SK_ERRMSG
         THROW_ERR(InvalidString);
+#endif
         return false;
     }
 
@@ -507,7 +566,9 @@ PUBLIC(bool) skJson_array_push_str(skJson* json, const char* string)
     skJson string_node;
 
     if(!valid_with_type(json, SK_ARRAY_NODE)) {
+#ifdef SK_ERRMSG
         THROW_ERR(WrongNodeType);
+#endif
         return false;
     }
 
@@ -525,7 +586,9 @@ PUBLIC(bool) skJson_array_insert_str(skJson* json, const char* string, size_t in
     skJson string_node;
 
     if(!valid_with_type(json, SK_ARRAY_NODE) || is_null(string)) {
+#ifdef SK_ERRMSG
         THROW_ERR(WrongNodeType);
+#endif
         return false;
     }
 
@@ -543,7 +606,9 @@ PUBLIC(bool) skJson_array_push_strlit(skJson* json, const char* string)
     skJson string_node;
 
     if(!valid_with_type(json, SK_ARRAY_NODE) || is_null(string)) {
+#ifdef SK_ERRMSG
         THROW_ERR(WrongNodeType);
+#endif
         return false;
     }
 
@@ -561,7 +626,9 @@ PUBLIC(bool) skJson_array_insert_strlit(skJson* json, const char* string, size_t
     skJson string_node;
 
     if(!valid_with_type(json, SK_ARRAY_NODE) || is_null(string)) {
+#ifdef SK_ERRMSG
         THROW_ERR(WrongNodeType);
+#endif
         return false;
     }
 
@@ -579,7 +646,9 @@ PUBLIC(bool) skJson_array_push_int(skJson* json, long int n)
     skJson int_node;
 
     if(!valid_with_type(json, SK_ARRAY_NODE)) {
+#ifdef SK_ERRMSG
         THROW_ERR(WrongNodeType);
+#endif
         return false;
     }
 
@@ -592,7 +661,9 @@ PUBLIC(bool) skJson_array_insert_int(skJson* json, long int n, size_t index)
     skJson int_node;
 
     if(!valid_with_type(json, SK_ARRAY_NODE)) {
+#ifdef SK_ERRMSG
         THROW_ERR(WrongNodeType);
+#endif
         return false;
     }
 
@@ -605,7 +676,9 @@ PUBLIC(bool) skJson_array_push_double(skJson* json, double n)
     skJson double_node;
 
     if(!valid_with_type(json, SK_ARRAY_NODE)) {
+#ifdef SK_ERRMSG
         THROW_ERR(WrongNodeType);
+#endif
         return false;
     }
 
@@ -618,7 +691,9 @@ PUBLIC(bool) skJson_array_insert_double(skJson* json, double n, size_t index)
     skJson double_node;
 
     if(!valid_with_type(json, SK_ARRAY_NODE)) {
+#ifdef SK_ERRMSG
         THROW_ERR(WrongNodeType);
+#endif
         return false;
     }
 
@@ -631,7 +706,9 @@ PUBLIC(bool) skJson_array_push_bool(skJson* json, bool boolean)
     skJson bool_node;
 
     if(!valid_with_type(json, SK_ARRAY_NODE)) {
+#ifdef SK_ERRMSG
         THROW_ERR(WrongNodeType);
+#endif
         return false;
     }
 
@@ -644,7 +721,9 @@ PUBLIC(bool) skJson_array_insert_bool(skJson* json, bool boolean, size_t index)
     skJson bool_node;
 
     if(!valid_with_type(json, SK_ARRAY_NODE)) {
+#ifdef SK_ERRMSG
         THROW_ERR(WrongNodeType);
+#endif
         return false;
     }
 
@@ -657,7 +736,9 @@ PUBLIC(bool) skJson_array_push_null(skJson* json)
     skJson null_node;
 
     if(!valid_with_type(json, SK_ARRAY_NODE)) {
+#ifdef SK_ERRMSG
         THROW_ERR(WrongNodeType);
+#endif
         return false;
     }
 
@@ -670,7 +751,9 @@ PUBLIC(bool) skJson_array_insert_null(skJson* json, size_t index)
     skJson null_node;
 
     if(!valid_with_type(json, SK_ARRAY_NODE)) {
+#ifdef SK_ERRMSG
         THROW_ERR(WrongNodeType);
+#endif
         return false;
     }
 
@@ -684,7 +767,9 @@ PUBLIC(bool) skJson_array_push_element(skJson* json, skJson** element)
             || (*element)->type == SK_MEMBER_NODE 
             || is_some((*element)->parent_arena.ptr))
     {
+#ifdef SK_ERRMSG
         THROW_ERR(WrongNodeType);
+#endif
         return false;
     } else {
         link(*element, json);
@@ -707,7 +792,9 @@ PUBLIC(bool) skJson_array_insert_element(skJson* json, skJson** element, size_t 
             || (*element)->type == SK_MEMBER_NODE
             || is_some((*element)->parent_arena.ptr)) 
     {
+#ifdef SK_ERRMSG
         THROW_ERR(WrongNodeType);
+#endif
         return false;
     } else {
         link(*element, json);
@@ -884,7 +971,9 @@ PUBLIC(skJson) skJson_array_pop(skJson* json)
     node.type = SK_ERROR_NODE;
 
     if(!valid_with_type(json, SK_ARRAY_NODE)) {
+#ifdef SK_ERRMSG
         THROW_ERR(WrongNodeType);
+#endif
         return node;
     }
 
@@ -899,7 +988,9 @@ PUBLIC(skJson) skJson_array_pop(skJson* json)
 PUBLIC(bool) skJson_array_remove(skJson* json, size_t index)
 {
     if(!valid_with_type(json, SK_ARRAY_NODE)) {
+#ifdef SK_ERRMSG
         THROW_ERR(WrongNodeType);
+#endif
         return false;
     }
 
@@ -909,7 +1000,9 @@ PUBLIC(bool) skJson_array_remove(skJson* json, size_t index)
 PUBLIC(size_t) skJson_array_len(skJson* json)
 {
     if(!valid_with_type(json, SK_ARRAY_NODE)) {
+#ifdef SK_ERRMSG
         THROW_ERR(WrongNodeType);
+#endif
         return 0;
     }
 
@@ -919,7 +1012,9 @@ PUBLIC(size_t) skJson_array_len(skJson* json)
 PUBLIC(skJson*) skJson_array_front(skJson* json)
 {
     if(!valid_with_type(json, SK_ARRAY_NODE)) {
+#ifdef SK_ERRMSG
         THROW_ERR(WrongNodeType);
+#endif
         return NULL;
     }
 
@@ -929,7 +1024,9 @@ PUBLIC(skJson*) skJson_array_front(skJson* json)
 PUBLIC(skJson*) skJson_array_back(skJson* json)
 {
     if(!valid_with_type(json, SK_ARRAY_NODE)) {
+#ifdef SK_ERRMSG
         THROW_ERR(WrongNodeType);
+#endif
         return NULL;
     }
 
@@ -939,7 +1036,9 @@ PUBLIC(skJson*) skJson_array_back(skJson* json)
 PUBLIC(skJson*) skJson_array_index(skJson* json, size_t index)
 {
     if(!valid_with_type(json, SK_ARRAY_NODE)) {
+#ifdef SK_ERRMSG
         THROW_ERR(WrongNodeType);
+#endif
         return NULL;
     }
 
@@ -949,7 +1048,9 @@ PUBLIC(skJson*) skJson_array_index(skJson* json, size_t index)
 PUBLIC(void) skJson_array_clear(skJson* json)
 {
     if(!valid_with_type(json, SK_ARRAY_NODE)) {
+#ifdef SK_ERRMSG
         THROW_ERR(WrongNodeType);
+#endif
         return;
     }
 
@@ -964,7 +1065,9 @@ PUBLIC(skJson) skJson_object_new(void)
 PUBLIC(bool) skJson_object_sort_ascending(skJson* json)
 {
     if(!valid_with_type(json, SK_OBJECT_NODE)) {
+#ifdef SK_ERRMSG
         THROW_ERR(WrongNodeType);
+#endif
         return false;
     }
 
@@ -988,7 +1091,9 @@ skJson_object_insert_element(
     if(!valid_with_type(json, SK_OBJECT_NODE)
             || is_some(element->parent_arena.ptr)) 
     {
+#ifdef SK_ERRMSG
         THROW_ERR(WrongNodeType);
+#endif
         return false;
     }
 
@@ -1009,7 +1114,9 @@ skJson_object_insert_element(
 PUBLIC(bool) skJson_object_remove(skJson* json, size_t index)
 {
     if(!valid_with_type(json, SK_OBJECT_NODE)) {
+#ifdef SK_ERRMSG
         THROW_ERR(WrongNodeType);
+#endif
         return false;
     }
 
@@ -1025,7 +1132,9 @@ skJson_object_remove_by_key(
     skObjTuple dummy_tuple;
 
     if(!valid_with_type(json, SK_OBJECT_NODE)) {
+#ifdef SK_ERRMSG
         THROW_ERR(WrongNodeType);
+#endif
         return false;
     }
 
@@ -1042,7 +1151,9 @@ skJson_object_remove_by_key(
 PUBLIC(skObjTuple*) skJson_object_index(const skJson* json, size_t index)
 {
     if(!valid_with_type(json, SK_OBJECT_NODE)) {
+#ifdef SK_ERRMSG
         THROW_ERR(WrongNodeType);
+#endif
         return NULL;
     }
 
@@ -1058,7 +1169,9 @@ skJson_object_index_by_key(
     skObjTuple dummy_tuple;
 
     if(!valid_with_type(json, SK_OBJECT_NODE)) {
+#ifdef SK_ERRMSG
         THROW_ERR(WrongNodeType);
+#endif
         return NULL;
     }
 
@@ -1092,7 +1205,9 @@ PUBLIC(char*) skJson_objtuple_key(const skObjTuple* tuple)
 PUBLIC(size_t) skJson_object_len(const skJson* json)
 {
     if(!valid_with_type(json, SK_OBJECT_NODE)) {
+#ifdef SK_ERRMSG
         THROW_ERR(WrongNodeType);
+#endif
         return 0;
     }
 
@@ -1105,7 +1220,9 @@ skJson_object_contains(const skJson* json, const char* key, bool sorted)
     skObjTuple dummy_tuple;
 
     if(!valid_with_type(json, SK_OBJECT_NODE)) {
+#ifdef SK_ERRMSG
         THROW_ERR(WrongNodeType);
+#endif
         return false;
     }
 
@@ -1121,7 +1238,9 @@ skJson_object_contains(const skJson* json, const char* key, bool sorted)
 PUBLIC(void) skJson_object_clear(skJson* json)
 {
     if(!valid_with_type(json, SK_OBJECT_NODE)) {
+#ifdef SK_ERRMSG
         THROW_ERR(WrongNodeType);
+#endif
         return;
     }
 
@@ -1140,7 +1259,9 @@ PRIVATE(Serializer) Serializer_new(size_t bufsize, bool expand)
     }
 
     if(is_null(buffer = malloc(bufsize))) {
+#ifdef SK_ERRMSG
         THROW_ERR(OutOfMemory);
+#endif
         return pbuf;
     }
 
@@ -1191,7 +1312,9 @@ PRIVATE(unsigned char*) Serializer_buffer_ensure(Serializer* serializer, size_t 
 #endif
 
     if(needed > INT_MAX) {
+#ifdef SK_ERRMSG
         THROW_ERR(AllocationTooLarge);
+#endif
         if(!serializer->user_provided) {
             Serializer_drop(serializer);
         }
@@ -1218,7 +1341,9 @@ PRIVATE(unsigned char*) Serializer_buffer_ensure(Serializer* serializer, size_t 
         if(needed <= INT_MAX) {
             newsize = INT_MAX;
         } else {
+#ifdef SK_ERRMSG
             THROW_ERR(AllocationTooLarge);
+#endif
             if(!serializer->user_provided) {
                 Serializer_drop(serializer);
             }

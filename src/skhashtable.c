@@ -59,13 +59,17 @@ skHashTable_new(HashFn hash_fn, CmpKeyFn cmp_key, FreeKeyFn free_key, FreeValueF
     skVec*       storage;
 
     if(is_null(cmp_key)) {
+#ifdef SK_ERRMSG
         THROW_ERR(MissingComparisonFn);
+#endif
         return NULL;
     }
 
     table = malloc(sizeof(skHashTable));
     if(is_null(table)) {
+#ifdef SK_ERRMSG
         THROW_ERR(OutOfMemory);
+#endif
         return NULL;
     }
 
@@ -138,7 +142,9 @@ _skHashTable_expand(skHashTable* table)
             new_storage = skVec_with_capacity(ele_size, prime);
 
             if(is_null(new_storage)) {
+#ifdef SK_ERRMSG
                 THROW_ERR(OutOfMemory);
+#endif
                 return false;
             }
 
@@ -148,7 +154,9 @@ _skHashTable_expand(skHashTable* table)
 
     /* Check if we exceeded max table size */
     if(is_null(new_storage)) {
+#ifdef SK_ERRMSG
         THROW_ERR(TableSizeLimit);
+#endif
         return false;
     }
 
@@ -221,7 +229,9 @@ skHashTable_get(const skHashTable* table, const void* key)
     }
 
     if(is_null(key)) {
+#ifdef SK_ERRMSG
         THROW_ERR(InvalidKey);
+#endif
         return NULL;
     }
 
@@ -243,12 +253,16 @@ skHashTable_insert(skHashTable* table, const void* key, const void* value)
     }
 
     if(is_null(key)) {
+#ifdef SK_ERRMSG
         THROW_ERR(InvalidKey);
+#endif
         return false;
     }
 
     if(is_null(value)) {
+#ifdef SK_ERRMSG
         THROW_ERR(InvalidValue);
+#endif
         return false;
     }
 #ifdef SK_DBUG
@@ -287,7 +301,9 @@ skHashTable_remove(skHashTable* table, void* key)
     }
 
     if(is_null(key)) {
+#ifdef SK_ERRMSG
         THROW_ERR(InvalidKey);
+#endif
         return false;
     }
 

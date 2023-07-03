@@ -21,7 +21,9 @@ skVec* skVec_new(const size_t ele_size)
 
     vec = malloc(sizeof(skVec));
     if(is_null(vec)) {
+#ifdef SK_ERRMSG
         THROW_ERR(OutOfMemory);
+#endif
         return NULL;
     }
 
@@ -45,7 +47,9 @@ skVec* skVec_with_capacity(const size_t ele_size, const size_t capacity)
 
     allocation = calloc(capacity, ele_size);
     if(is_null(allocation)) {
+#ifdef SK_ERRMSG
         THROW_ERR(OutOfMemory);
+#endif
         return NULL;
     }
 
@@ -65,13 +69,17 @@ static int _skVec_maybe_grow(skVec* vec)
         cap = (vec->capacity == 0) ? 10 : vec->capacity * 2;
 
         if((amount = cap * vec->ele_size) > INT_MAX) {
+#ifdef SK_ERRMSG
             THROW_ERR(AllocationTooLarge);
+#endif
             return 1;
         }
 
         new_alloc = realloc(vec->allocation, amount);
         if(is_null(new_alloc)) {
+#ifdef SK_ERRMSG
             THROW_ERR(OutOfMemory);
+#endif
             return 1;
         }
 
@@ -94,7 +102,9 @@ void* skVec_index_unsafe(const skVec* vec, const size_t index)
     }
 
     if(index >= vec->capacity) {
+#ifdef SK_ERRMSG
         THROW_ERR(IndexOutOfBounds);
+#endif
         return NULL;
     }
 
@@ -110,7 +120,9 @@ bool skVec_insert_non_contiguous(skVec* vec, const void* element, const size_t i
     }
 
     if(index >= vec->capacity) {
+#ifdef SK_ERRMSG
         THROW_ERR(IndexOutOfBounds);
+#endif
         return false;
     }
 
@@ -197,12 +209,16 @@ void* skVec_get_by_key(const skVec* vec, const void* key, CmpFn cmp, bool sorted
     }
 
     if(is_null(key)) {
+#ifdef SK_ERRMSG
         THROW_ERR(InvalidKey);
+#endif
         return NULL;
     }
 
     if(is_null(cmp)) {
+#ifdef SK_ERRMSG
         THROW_ERR(MissingComparisonFn);
+#endif
         return NULL;
     }
 
@@ -229,7 +245,9 @@ bool skVec_sort(skVec* vec, CmpFn cmp)
     }
 
     if(is_null(cmp)) {
+#ifdef SK_ERRMSG
         THROW_ERR(MissingComparisonFn);
+#endif
         return false;
     }
 
@@ -247,12 +265,16 @@ bool skVec_remove_by_key(skVec* vec, const void* key, CmpFn cmp, FreeFn free_fn,
     }
 
     if(is_null(key)) {
+#ifdef SK_ERRMSG
         THROW_ERR(InvalidKey);
+#endif
         return false;
     }
 
     if(is_null(cmp)) {
+#ifdef SK_ERRMSG
         THROW_ERR(MissingComparisonFn);
+#endif
         return false;
     }
 
@@ -282,7 +304,9 @@ void* skVec_index(const skVec* vec, const size_t index)
     }
 
     if(index >= vec->len) {
+#ifdef SK_ERRMSG
         THROW_ERR(IndexOutOfBounds);
+#endif
         return NULL;
     }
 
@@ -299,7 +323,9 @@ void* skVec_pop(skVec* vec)
 
     retval = malloc(vec->ele_size);
     if(is_null(retval)) {
+#ifdef SK_ERRMSG
         THROW_ERR(OutOfMemory);
+#endif
         return NULL;
     }
 
@@ -341,7 +367,9 @@ bool skVec_insert(skVec* vec, const void* element, const size_t index)
     }
 
     if(index > vec->len) {
+#ifdef SK_ERRMSG
         THROW_ERR(IndexOutOfBounds);
+#endif
         return false;
     }
 
@@ -375,7 +403,9 @@ bool skVec_remove(skVec* vec, const size_t index, FreeFn free_fn)
     }
 
     if(index >= vec->len) {
+#ifdef SK_ERRMSG
         THROW_ERR(IndexOutOfBounds);
+#endif
         return false;
     }
 

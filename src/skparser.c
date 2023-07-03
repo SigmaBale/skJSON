@@ -137,8 +137,7 @@ skJson skparse_json_object(skScanner* scanner, skJson* parent, bool* oom)
                 tuple.key   = key;
                 tuple.value = value;
 #ifdef SK_DBUG
-                assert(
-                    (char*) tuple.value.parent_arena.ptr == (char*) skVec_inner_unsafe(table));
+                assert(tuple.value.parent_arena.ptr == object_node.data.j_object);
                 assert(tuple.value.parent_arena.type == SK_OBJECT_NODE);
 #endif
             }
@@ -222,7 +221,7 @@ skJson skparse_json_array(skScanner* scanner, skJson* parent, bool* oom)
             start = false;
         }
 
-        temp = skJsonNode_parse(scanner, NULL, oom);
+        temp = skJsonNode_parse(scanner, &array_node, oom);
 
         if(*oom) {
             skJsonNode_drop(&array_node);
@@ -285,7 +284,9 @@ skJsonString skJsonString_new_internal(skScanner* scanner, skJson* err)
 
     bytes = slice.len + sizeof("");
     if(is_null(jstring = malloc(bytes))) {
+#ifdef SK_ERRMSG
         THROW_ERR(OutOfMemory);
+#endif
         return NULL;
     }
 

@@ -26,7 +26,9 @@ skScanner_new(void* buffer, size_t bufsize)
 
     scanner = malloc(sizeof(skScanner));
     if(is_null(scanner)) {
+#ifdef SK_ERRMSG
         THROW_ERR(OutOfMemory);
+#endif
         return NULL;
     }
 

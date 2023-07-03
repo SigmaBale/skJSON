@@ -13,7 +13,9 @@ strdup_ansi(const char* str)
     dup = malloc(len);
 
     if(is_null(dup)) {
+#ifdef SK_ERRMSG
         THROW_ERR(OutOfMemory);
+#endif
         return NULL;
     }
 
