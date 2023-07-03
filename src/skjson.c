@@ -1,9 +1,10 @@
+/* clang-format off */
 #ifdef SK_DBUG
 #include <assert.h>
 #endif
 #include "skerror.h"
+#include "skparser.h" /* Make sure skparser.h which includes sknode.h is included before skjson.h */
 #include "skjson.h"
-#include "skparser.h"
 #include "skutils.h"
 #include <limits.h>
 #include <stdio.h>
@@ -29,6 +30,11 @@
     } while(0)
 /* Unlinks the node from the parent */
 #define unlink(node) (node)->parent_arena.ptr = NULL
+/* Copies the link of 'dst' node into 'src' node. Then they will point to the
+ * same parent_arena. */
+#define copylink(src, dst) \
+    (src)->parent_arena.ptr = (dst)->parent_arena.ptr; \
+    (src)->parent_arena.type = (dst)->parent_arena.type
 
 typedef struct _Serializer Serializer;
 
@@ -51,8 +57,6 @@ struct _Serializer {
     bool           expand;
     bool           user_provided;
 };
-
-/* clang-format off */
 
 /* Create a new Json Element from the given buffer 'buff' of parsable text
  * with length 'bufsize', return NULL in case 'buff' and 'bufsize' are NULL or 0,
@@ -100,35 +104,38 @@ PUBLIC(const char*) skJson_error(const skJson* json)
  * data-structure other than vector internally. That way it will easier to maintain
  * this code, therefore the separate member of union called 'j_object' even though
  * currently it is the same data structure as 'j_array'. */
-PUBLIC(void) skJson_drop(skJson** json)
+PUBLIC(void) skJson_drop(skJson* json)
 {
     void* arena;
-    skJson* temp;
+    skJson null_node;
+    skJson* old;
     size_t  idx;
 
-    if(is_null(json) || is_null(*json)) {
+    if(is_null(json) || json->type == SK_DROPPED_NODE) {
         return;
     }
 
-    if(is_some(arena = (*json)->parent_arena.ptr)) {
-        switch((*json)->parent_arena.type) {
+    if(is_some(arena = json->parent_arena.ptr)) {
+        switch(json->parent_arena.type) {
             case SK_ARRAY_NODE:
-                idx = ((char*) *json - (char*) arena) / sizeof(skJson);
-#ifndef SK_DBUG
-                skVec_remove((skVec*) arena, idx, (FreeFn) skJsonNode_drop);
-#else
-                assert(skVec_remove((skVec*) arena, idx, (FreeFn) skJsonNode_drop);
-#endif
-                *json = NULL;
+                idx = ((char*) json - (char*) skVec_inner_unsafe((skVec*) arena)) 
+                    / sizeof(skJson);
+
+                null_node = RawNode_new(SK_NULL_NODE, NULL);
+                copylink(&null_node, json);
+
+                old = skVec_index((skVec*) arena, idx);
+                skJsonNode_drop(old);
+                *old = null_node;
                 break;
             case SK_OBJECT_NODE:
-                idx = ((char*) *json - (char*) arena) / sizeof(skObjTuple);
-#ifndef SK_DBUG
-                skVec_remove((skVec*) arena, idx, (FreeFn) skObjTuple_drop);
+                idx = ((char*) json - (char*) skVec_inner_unsafe((skVec*) arena))
+                    / sizeof(skObjTuple);
+#ifdef SK_DBUG
+                assert(skVec_remove((skVec*) arena, idx, (FreeFn) skObjTuple_drop));
 #else
-                assert(skVec_remove((skVec*) arena, idx, (FreeFn) skObjTuple_drop);
+                skVec_remove((skVec*) arena, idx, (FreeFn) skObjTuple_drop);
 #endif
-                *json = NULL;
                 break;
             default:
 #ifdef SK_DBUG
@@ -138,9 +145,10 @@ PUBLIC(void) skJson_drop(skJson** json)
                 break;
         }
     } else {
-        skJsonNode_drop(*json);
-        *json = NULL;
+        skJsonNode_drop(json);
     }
+
+    json->type = SK_DROPPED_NODE;
 }
 
 PUBLIC(int) skJson_type(const skJson* json)
@@ -871,20 +879,21 @@ PRIVATE(bool) array_push_node_checked(skJson* json, skJson* node)
 
 PUBLIC(skJson) skJson_array_pop(skJson* json)
 {
-    skJson* node;
-
-    node->type = SK_ERROR_NODE;
+    skJson node;
+    skJson* temp;
+    node.type = SK_ERROR_NODE;
 
     if(!valid_with_type(json, SK_ARRAY_NODE)) {
         THROW_ERR(WrongNodeType);
-        return *node;
+        return node;
     }
 
-    if(is_some(node = skVec_pop(json->data.j_array))) {
-        unlink(node);
+    if(is_some(temp = skVec_pop(json->data.j_array))) {
+        unlink(temp);
+        node = *temp;
     }
 
-    return *node;
+    return node;
 }
 
 PUBLIC(bool) skJson_array_remove(skJson* json, size_t index)
@@ -1030,7 +1039,7 @@ skJson_object_remove_by_key(
         sorted);
 }
 
-PUBLIC(skJson*) skJson_object_element(const skJson* json, size_t index)
+PUBLIC(skObjTuple*) skJson_object_index(const skJson* json, size_t index)
 {
     if(!valid_with_type(json, SK_OBJECT_NODE)) {
         THROW_ERR(WrongNodeType);
@@ -1040,8 +1049,8 @@ PUBLIC(skJson*) skJson_object_element(const skJson* json, size_t index)
     return skVec_index(json->data.j_object, index);
 }
 
-PUBLIC(skJson*)
-skJson_object_element_by_key(
+PUBLIC(skObjTuple*)
+skJson_object_index_by_key(
     const skJson* json,
     const char*       key,
     bool              sorted)
@@ -1060,6 +1069,24 @@ skJson_object_element_by_key(
         &dummy_tuple,
         (CmpFn) compare_tuples,
         sorted);
+}
+
+PUBLIC(skJson*) skJson_objtuple_value(const skObjTuple* tuple)
+{
+    if(is_null(tuple)) {
+        return NULL;
+    }
+
+    return discard_const(&tuple->value);
+}
+
+PUBLIC(char*) skJson_objtuple_key(const skObjTuple* tuple)
+{
+    if(is_null(tuple)) {
+        return NULL;
+    }
+
+    return strdup_ansi(tuple->key);
 }
 
 PUBLIC(size_t) skJson_object_len(const skJson* json)
@@ -1524,7 +1551,7 @@ PRIVATE(bool) Serializer_serialize_object(Serializer* serializer, skVec* table)
     for(i = 0; i < len; i++) {
         tuple = skVec_index(table, i);
 #ifdef SK_DBUG
-        assert(is_some(member_node));
+        assert(is_some(tuple));
 #endif
         if(!Serializer_serialize_string(serializer, tuple->key)) {
             return false;

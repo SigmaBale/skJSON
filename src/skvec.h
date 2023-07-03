@@ -6,10 +6,6 @@
 
 typedef struct skVec skVec;
 
-typedef int (*CmpFn)(const void *, const void *);
-
-typedef void (*FreeFn)(void *);
-
 skVec *skVec_new(const size_t ele_size);
 
 skVec *skVec_with_capacity(const size_t ele_size, const size_t capacity);

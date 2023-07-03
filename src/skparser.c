@@ -65,6 +65,7 @@ skJson skparse_json_object(skScanner* scanner, skJson* parent, bool* oom)
     parse_err = false;
     err       = false;
     start     = true;
+    *oom      = false;
 
     err_node.data.j_string = NULL;
     object_node            = ObjectNode_new(parent);
@@ -136,8 +137,9 @@ skJson skparse_json_object(skScanner* scanner, skJson* parent, bool* oom)
                 tuple.key   = key;
                 tuple.value = value;
 #ifdef SK_DBUG
-                assert((char*) tuple.parent_arena.ptr == (char*) skVec_inner_unsafe(table));
-                assert(tuple.parent_arena.type == SK_OBJECT_NODE);
+                assert(
+                    (char*) tuple.value.parent_arena.ptr == (char*) skVec_inner_unsafe(table));
+                assert(tuple.value.parent_arena.type == SK_OBJECT_NODE);
 #endif
             }
         } else {
@@ -186,7 +188,6 @@ skJson skparse_json_array(skScanner* scanner, skJson* parent, bool* oom)
 {
     skJson  temp;
     skJson  array_node;
-    skVec*  array;
     skToken token;
     bool    err;       /* Error flag */
     bool    start;     /* First iteration flag */
@@ -195,11 +196,12 @@ skJson skparse_json_array(skScanner* scanner, skJson* parent, bool* oom)
     start     = true;
     err       = false;
     parse_err = false;
+    *oom      = false;
     token     = skScanner_next(scanner);
 
     array_node = ArrayNode_new(parent);
     /* If arena allocation failed return immediately. */
-    if(is_null(array = array_node.data.j_array)) {
+    if(is_null(array_node.data.j_array)) {
         *oom = true;
         return array_node;
     }
@@ -220,7 +222,8 @@ skJson skparse_json_array(skScanner* scanner, skJson* parent, bool* oom)
             start = false;
         }
 
-        temp = skJsonNode_parse(scanner, &array_node, oom);
+        temp = skJsonNode_parse(scanner, NULL, oom);
+
         if(*oom) {
             skJsonNode_drop(&array_node);
             array_node.data.j_array = NULL;
@@ -230,7 +233,7 @@ skJson skparse_json_array(skScanner* scanner, skJson* parent, bool* oom)
             break;
         }
 
-        if(!skVec_push(array, &temp)) {
+        if(!skVec_push(array_node.data.j_array, &temp)) {
             *oom = true;
             skJsonNode_drop(&temp);
             skJsonNode_drop(&array_node);
@@ -345,12 +348,12 @@ bool skJsonString_isvalid(const skStrSlice* slice)
 
 skJson skparse_json_string(skScanner* scanner, skJson* parent, bool* oom)
 {
-    skToken      token;
     skJsonString jstring;
     skJson       string_node;
     skJson       err_node;
 
     memset(&string_node, 0, sizeof(skJson));
+    *oom                = false;
     err_node.data.j_err = NULL;
     jstring             = skJsonString_new_internal(scanner, &err_node);
 

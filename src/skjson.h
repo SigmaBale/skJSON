@@ -2,14 +2,19 @@
 #define __SK_JSON_H__
 /* clang-format off */
 
-#include "sknode.h"
 #include <stddef.h>
+#include "sktypes.h"
 
 /* Marker macro for public functions */
 #define PUBLIC(ret) ret
 
+#ifndef __SK_NODE_H__
 /* Opaque type representing the Json Element */
-typedef skJson skJson;
+typedef struct _skJsonNode skJson;
+/* Opaque type representing the Json Key-Value pair of Json Object. */
+typedef struct skObjTuple skObjTuple;
+#endif
+
 /* Parse the Json from 'buff' of size 'bufsize'.
  * If parsing error occured it returns Error Json element which contains error info aka
  * string describing the error and position where it occured. */
@@ -30,9 +35,7 @@ PUBLIC(bool) skJson_bool_value(const skJson* json);
 /* Return duplicated value of 'json' string element */
 PUBLIC(char*) skJson_string_value(const skJson* json);
 /* Drops the 'json' element including its sub-elements. */
-PUBLIC(void) skJson_drop(skJson **json);
-/* Drops the whole 'json' structure from the root. */
-PUBLIC(void) skJson_drop_whole(skJson **json);
+PUBLIC(void) skJson_drop(skJson *json);
 /* Transforms the 'json' element into Json Integer element with value 'n' */
 PUBLIC(skJson *) skJson_transform_into_int(skJson *json, long int n);
 /* Transforms the 'json' element into Json Double element with value 'n' */
@@ -172,10 +175,7 @@ PUBLIC(bool) skJson_object_is_sorted(skJson* json);
 /* Checks if the 'json' object is sorted with user provided 'cmp_fn'. */
 PUBLIC(bool) skJson_object_is_sorted_by(skJson* json, CmpFn cmp_fn);
 
-/* Insert 'key' and json element into 'json' object at 'index', element behind the
- * 'elementp' is immediatly nulled and destroyed upon successfull insertion, this is by
- * the design because it is not part of the 'json' object, if inserting fails element is
- * not destroyed and pointer is not nulled. */
+/* Insert 'key' and json element into 'json' object at 'index' */
 PUBLIC(bool) skJson_object_insert_element(skJson *json, const char *key, skJson *elementp, size_t index);
 /* Remove json element from 'json' object at 'index'. Return true upon success otherwise false. */
 PUBLIC(bool) skJson_object_remove(skJson *json, size_t index);
@@ -183,13 +183,16 @@ PUBLIC(bool) skJson_object_remove(skJson *json, size_t index);
  * search, otherwise key comparison is done using linear search. If the object is not sorted 
  * and users sets the 'sorted' flag then the search is undefined. */
 PUBLIC(bool) skJson_object_remove_by_key(skJson* json, const char* key, bool sorted);
-/* Get element from 'json' object at 'index'. Returns NULL if element was not found, or 
- * isnput arguments are invalid. */ 
-PUBLIC(skJson *) skJson_object_element(const skJson *json, size_t index);
+/* Get ObjTuple (key,value pair) from 'json' object at 'index'. */
+PUBLIC(skObjTuple*) skJson_object_index(const skJson *json, size_t index);
 /* Get element associated with the 'key' from the 'json' object.
  * Searching is done using binary search if object is sorted, otherwise linear search is used.
  * Return NULL if element was not found or input arguments are invalid. */
-PUBLIC(skJson*) skJson_object_element_by_key( const skJson* json, const char* key, bool sorted);
+PUBLIC(skObjTuple*) skJson_object_index_by_key(const skJson* json, const char* key, bool sorted);
+/* Returns the value from the key-value 'tuple'. */
+PUBLIC(skJson*) skJson_objtuple_value(const skObjTuple* tuple);
+/* Returns duplicated key (cstring) from the key-value 'tuple'. */
+PUBLIC(char*) skJson_objtuple_key(const skObjTuple* tuple);
 /* Returns the number of Json elements in 'json' object */
 PUBLIC(size_t) skJson_object_len(const skJson *json);
 /* Checks if there is a Json element associated with the 'key' in the 'json' object.

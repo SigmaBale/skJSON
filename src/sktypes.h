@@ -6,6 +6,10 @@ typedef char *skJsonString;
 typedef double skJsonDouble;
 typedef int skJsonBool;
 
+typedef int (*CmpFn)(const void *, const void *);
+
+typedef void (*FreeFn)(void *);
+
 #ifdef bool
 #undef bool
 #endif

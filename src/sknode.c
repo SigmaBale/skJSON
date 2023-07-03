@@ -16,11 +16,18 @@ skJson RawNode_new(skNodeType type, const skJson* parent)
     raw_node.type = type;
 
     if(is_some(parent)) {
-        /* For now both the json array and object use the vec as arena */
-        raw_node.parent_arena.ptr  = skVec_inner_unsafe(parent->data.j_array);
+        /* We could use the same field 'j_array' in both cases it is a union
+         * after all and both the array and object use the vector as arena.
+         * Keep it seperated for future maintenance and readability. */
+        if(parent->type == SK_ARRAY_NODE) {
+            raw_node.parent_arena.ptr = (void*) parent->data.j_array;
+        } else {
+            raw_node.parent_arena.ptr = (void*) parent->data.j_object;
+        }
         raw_node.parent_arena.type = parent->type;
     } else {
-        raw_node.parent_arena.ptr = NULL;
+        raw_node.parent_arena.ptr  = NULL;
+        raw_node.parent_arena.type = SK_NONE_NODE;
     }
 
     return raw_node;
@@ -53,7 +60,6 @@ skJson ArrayNode_new(const skJson* parent)
 skJson ErrorNode_new(const skJsonString msg, skJsonState state, const skJson* parent)
 {
     skJson err_node;
-    char*  error;
     char   errmsg[ERR_SIZE];
 
     err_node = RawNode_new(SK_ERROR_NODE, discard_const(parent));
@@ -120,10 +126,10 @@ void skObjTuple_drop(skObjTuple* tuple)
 
 void skJsonNode_drop(skJson* node)
 {
-    void*  arena;
-    size_t idx;
-
     if(is_some(node)) {
+#ifdef SK_DBUG
+        assert(node->type != SK_DROPPED_NODE);
+#endif
         switch(node->type) {
             case SK_OBJECT_NODE:
                 skVec_drop(node->data.j_object, (FreeFn) skObjTuple_drop);
