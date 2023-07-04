@@ -25,7 +25,9 @@ PUBLIC(const char*) skJson_error(const skJson *json);
 /* Return 'json' element type */
 PUBLIC(int) skJson_type(const skJson *json);
 /* Returns true if 'json' element has a parent, otherwise false. */
-PUBLIC(bool) skJson_has_parent(const skJson *json);
+PUBLIC(bool) skJson_parent(const skJson *json);
+/* Returns type of parent for 'json' element. */
+PUBLIC(int) skJson_parent_type(const skJson *json);
 /* Return value of 'json' integer element */
 PUBLIC(long int) skJson_integer_value(const skJson* json, int* cntrl);
 /* Return value of 'json' double element */
@@ -34,6 +36,10 @@ PUBLIC(double) skJson_double_value(const skJson* json, int* cntrl);
 PUBLIC(bool) skJson_bool_value(const skJson* json);
 /* Return duplicated value of 'json' string element */
 PUBLIC(char*) skJson_string_value(const skJson* json);
+/* *UNSAFE*: Returns direct reference to the stored string inside of 'json' element.
+ * Use this very carefully because user might introduce Undefined Behaviour or cause
+ * json data to become invalid according to the json standard. */
+PUBLIC(char*) skJson_string_ref_unsafe(const skJson* json);
 /* Drops the 'json' element including its sub-elements. */
 PUBLIC(void) skJson_drop(skJson *json);
 /* Transforms the 'json' element into Json Integer element with value 'n' */
@@ -109,9 +115,9 @@ PUBLIC(bool) skJson_array_push_str(skJson *json, const char *string);
 /* Insert 'string' into the 'json' array at 'index'. */
 PUBLIC(bool) skJson_array_insert_str(skJson *json, const char *string, size_t index);
 /* Push 'string' reference into the 'json' array. */
-PUBLIC(bool) skJson_array_push_strlit(skJson *json, const char *string);
+PUBLIC(bool) skJson_array_push_ref(skJson *json, const char *string);
 /* Insert 'string' reference into the 'json' array at 'index'. */
-PUBLIC(bool) skJson_array_insert_strlit(skJson *json, const char *string, size_t index);
+PUBLIC(bool) skJson_array_insert_ref(skJson *json, const char *string, size_t index);
 /* Push 'n' integer into the 'json' array. */
 PUBLIC(bool) skJson_array_push_int(skJson *json, long int n);
 /* Insert 'n' integer into the 'json' array at 'index'. */
@@ -129,9 +135,9 @@ PUBLIC(bool) skJson_array_push_null(skJson *json);
 /* Insert NULL element into the 'json' array at 'index'. */
 PUBLIC(bool) skJson_array_insert_null(skJson *json, size_t index);
 /* Push Json 'element' into the 'json' array. */
-PUBLIC(bool) skJson_array_push_element(skJson *json, skJson **element);
+PUBLIC(bool) skJson_array_push_element(skJson *json, skJson *element);
 /* Insert Json 'element' into the 'json' array at 'index'. */
-PUBLIC(bool) skJson_array_insert_element(skJson *json, skJson **element, size_t index);
+PUBLIC(bool) skJson_array_insert_element(skJson *json, skJson *element, size_t index);
 /* Create Json array from array 'strings' of 'count' string values */
 PUBLIC(skJson) skJson_array_from_strings(const char *const *strings, size_t count);
 /* Create Json array from array 'strings' of 'count' string reference values */
@@ -174,9 +180,22 @@ PUBLIC(bool) skJson_object_sort_key_by(skJson* json, CmpFn cmp_fn);
 PUBLIC(bool) skJson_object_is_sorted(skJson* json);
 /* Checks if the 'json' object is sorted with user provided 'cmp_fn'. */
 PUBLIC(bool) skJson_object_is_sorted_by(skJson* json, CmpFn cmp_fn);
-
-/* Insert 'key' and json element into 'json' object at 'index' */
+/* Insert key-value pairs into 'json' object at 'index'. */
 PUBLIC(bool) skJson_object_insert_element(skJson *json, const char *key, skJson *elementp, size_t index);
+PUBLIC(bool) skJson_object_insert_int(skJson* json, const char *key, long int n, size_t index);
+PUBLIC(bool) skJson_object_insert_double(skJson* json, const char *key, double n, size_t index);
+PUBLIC(bool) skJson_object_insert_bool(skJson* json, const char *key, bool boolean, size_t index);
+PUBLIC(bool) skJson_object_insert_null(skJson* json, const char *key, size_t index);
+PUBLIC(bool) skJson_object_insert_ref(skJson* json, const char *key, const char *ref,  size_t index);
+PUBLIC(bool) skJson_object_insert_string(skJson* json, const char *key, const char *string,  size_t index);
+/* Push key-value pairs at the end of the 'json' object. */
+PUBLIC(bool) skJson_object_push_element(skJson *json, const char *key, skJson *elementp);
+PUBLIC(bool) skJson_object_push_int(skJson* json, const char *key, long int n);
+PUBLIC(bool) skJson_object_push_double(skJson* json, const char *key, double n);
+PUBLIC(bool) skJson_object_push_bool(skJson* json, const char *key, bool boolean);
+PUBLIC(bool) skJson_object_push_null(skJson* json, const char *key, size_t index);
+PUBLIC(bool) skJson_object_push_ref(skJson* json, const char *key, const char *ref);
+PUBLIC(bool) skJson_object_push_string(skJson* json, const char *key, const char *string);
 /* Remove json element from 'json' object at 'index'. Return true upon success otherwise false. */
 PUBLIC(bool) skJson_object_remove(skJson *json, size_t index);
 /* Remove element by 'key', if the 'json' object is sorted and 'sorted' is set, search is done using binary

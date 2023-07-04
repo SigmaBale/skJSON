@@ -503,7 +503,7 @@ Test(skJsonFinal, ParseComplete)
     json_final = skJson_parse(buf, n);
     cr_assert(json_final.type != SK_ERROR_NODE);
     cr_assert(skJson_type(&json_final) == SK_OBJECT_NODE);
-    cr_assert(skJson_has_parent(&json_final) == false);
+    cr_assert(skJson_parent(&json_final) == false);
 
     inner = json_final.data.j_object;
     cr_assert_eq(skVec_len(inner), 13);
@@ -598,15 +598,15 @@ Test(skJsonFinal, ParseComplete)
     cr_assert_eq(skJson_array_len(ret), 5);
     skJson_array_clear(ret);
     cr_assert_eq(skJson_array_len(ret), 0);
-    cr_assert(skJson_array_push_strlit(
+    cr_assert(skJson_array_push_ref(
         ret,
         "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl"));
-    cr_assert(skJson_array_push_strlit(
+    cr_assert(skJson_array_push_ref(
         ret,
         "ecdsa-sha2-nistp256 "
         "AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBEmKSENjQEezOmxkZMy7opKgwFB9nkt5Y"
         "RrYMjNuG5N87uRgg6CLrbo5wAdT/y6v0mKV0U2w0WZ2YB/++Tpockg="));
-    cr_assert(skJson_array_push_strlit(
+    cr_assert(skJson_array_push_ref(
         ret,
         "ssh-rsa "
         "AAAAB3NzaC1yc2EAAAADAQABAAABgQCj7ndNxQowgcQnjshcLrqPEiiphnt+"
@@ -622,6 +622,80 @@ Test(skJsonFinal, ParseComplete)
     cr_assert_eq(skJson_array_front(ret)->type, SK_STRINGLIT_NODE);
     cr_assert_eq(skJson_array_back(ret)->type, SK_STRINGLIT_NODE);
     cr_assert_eq(skJson_array_index(ret, 1)->type, SK_STRINGLIT_NODE);
+
+    skJson* node;
+    int     control = 0;
+
+    node = skJson_array_front(ret);
+    cr_assert(skJson_transform_into_int(node, 15)->data.j_int == 15);
+    cr_assert(node->data.j_int == 15);
+    cr_assert(skJson_integer_value(node, &control) == 15);
+    cr_assert(control == 0); /* No error */
+    cr_assert_eq(node->type, SK_INT_NODE);
+    cr_assert(skJson_parent(node));
+    cr_assert(skJson_parent_type(node) == SK_ARRAY_NODE);
+
+    cr_assert_eq(skJson_transform_into_double(node, 69.69)->data.j_double, 69.69);
+    cr_assert(skJson_double_value(node, &control) == 69.69);
+    cr_assert(control == 0); /* No error */
+    cr_assert_eq(node->type, SK_DOUBLE_NODE);
+    cr_assert(skJson_parent(node));
+    cr_assert(skJson_parent_type(node) == SK_ARRAY_NODE);
+
+    cr_assert_eq(skJson_transform_into_bool(node, false)->data.j_boolean, false);
+    cr_assert(skJson_bool_value(node) == false);
+    cr_assert_eq(node->type, SK_BOOL_NODE);
+    cr_assert(skJson_parent(node));
+    cr_assert(skJson_parent_type(node) == SK_ARRAY_NODE);
+
+    cr_assert_str_eq(
+        skJson_transform_into_stringlit(node, "Random bullshit")->data.j_string,
+        "Random bullshit");
+    cr_assert_str_eq(skJson_string_ref_unsafe(node), "Random bullshit");
+    cr_assert_eq(node->type, SK_STRINGLIT_NODE);
+    cr_assert(skJson_parent(node));
+    cr_assert(skJson_parent_type(node) == SK_ARRAY_NODE);
+
+    char* tempstr;
+    cr_assert_str_eq(
+        skJson_transform_into_string(node, "Random bullshit 2")->data.j_string,
+        "Random bullshit 2");
+    cr_assert_str_eq(skJson_string_ref_unsafe(node), "Random bullshit 2");
+    cr_assert_str_eq((tempstr = skJson_string_value(node)), "Random bullshit 2");
+    free(tempstr);
+    cr_assert_eq(node->type, SK_STRING_NODE);
+    cr_assert(skJson_parent(node));
+    cr_assert(skJson_parent_type(node) == SK_ARRAY_NODE);
+
+    cr_assert(skJson_transform_into_empty_array(node)->data.j_array != NULL);
+    cr_assert(skJson_array_len(node) == 0);
+    cr_assert_eq(node->type, SK_ARRAY_NODE);
+    cr_assert(skJson_parent(node));
+    cr_assert(skJson_array_insert_null(node, 0));
+    cr_assert(skJson_array_insert_bool(node, false, 1));
+    cr_assert(skJson_array_insert_double(node, 15.15, 0));
+    cr_assert(skJson_array_insert_int(node, 100, 2));
+    cr_assert(skJson_array_insert_ref(node, "Wow", 2));
+    cr_assert(skJson_array_push_str(node, "Wow owned"));
+    skJson new_element = skJson_double_new(15.5);
+    cr_assert(skJson_array_push_element(node, &new_element));
+    new_element = skJson_bool_new(true);
+    cr_assert(skJson_array_push_element(node, &new_element));
+    cr_assert(skJson_parent_type(node) == SK_ARRAY_NODE);
+    cr_assert(skJson_array_len(node) == 8);
+
+    cr_assert(skJson_transform_into_empty_object(node)->data.j_object != NULL);
+    cr_assert(skJson_object_len(node) == 0);
+    cr_assert_eq(skJson_type(node), SK_OBJECT_NODE);
+    cr_assert(skJson_parent(node));
+    cr_assert(skJson_parent_type(node) == SK_ARRAY_NODE);
+    new_element = skJson_bool_new(true);
+    //cr_assert(skJson_object_insert_element(node, 0));
+    //cr_assert(skJson_array_insert_bool(node, false, 1));
+    //cr_assert(skJson_array_insert_double(node, 15.15, 0));
+    //cr_assert(skJson_array_insert_int(node, 100, 2));
+    //cr_assert(skJson_array_insert_ref(node, "Wow", 2));
+    //cr_assert(skJson_array_push_str(node, "Wow owned"));
 
     // out = skJson_serialize(json_final);
     // cr_assert(out != NULL);
