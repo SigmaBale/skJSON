@@ -20,7 +20,7 @@ skSlice_start(const skStrSlice* slice)
 char*
 skSlice_end(const skStrSlice* slice)
 {
-    return (slice == NULL) ? NULL : slice->ptr + slice->len;
+    return (slice == NULL) ? NULL : slice->ptr + slice->len - 1;
 }
 
 char*

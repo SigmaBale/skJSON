@@ -14,7 +14,7 @@ skJsonString skJsonString_new_internal(skScanner* scanner, skJson* err_node);
 skJson       skparse_json_object(skScanner* scanner, skJson* parent, bool* oom);
 skJson       skparse_json_array(skScanner* scanner, skJson* parent, bool* oom);
 skJson       skparse_json_string(skScanner* scanner, skJson* parent, bool* oom);
-skJson       skparse_json_number(skScanner* scanner, skJson* parent);
+skJson       skparse_json_number(skScanner* scanner, skJson* parent, bool* oom);
 skJson       skparse_json_bool(skScanner* scanner, skJson* parent);
 skJson       skparse_json_null(skScanner* scanner, skJson* parent);
 
@@ -34,7 +34,7 @@ skJson skJsonNode_parse(skScanner* scanner, skJson* parent, bool* oom)
         case SK_HYPHEN:
         case SK_ZERO:
         case SK_DIGIT:
-            return skparse_json_number(scanner, parent);
+            return skparse_json_number(scanner, parent, oom);
         case SK_FALSE:
         case SK_TRUE:
             return skparse_json_bool(scanner, parent);
@@ -57,7 +57,6 @@ skJson skparse_json_object(skScanner* scanner, skJson* parent, bool* oom)
     skObjTuple tuple;
     char*      key;
     skToken    token;
-    skVec*     table;
     bool       err;       /* Error flag */
     bool       parse_err; /* Parse err flag */
     bool       start;     /* First iteration flag */
@@ -70,7 +69,8 @@ skJson skparse_json_object(skScanner* scanner, skJson* parent, bool* oom)
     err_node.data.j_string = NULL;
     object_node            = ObjectNode_new(parent);
     /* Return immediately if allocation failed. */
-    if(is_null((table = object_node.data.j_object))) {
+    if(is_null(object_node.data.j_object)) {
+        printf("Out of memory!\n");
         *oom = true;
         return object_node;
     }
@@ -98,15 +98,11 @@ skJson skparse_json_object(skScanner* scanner, skJson* parent, bool* oom)
             key = skJsonString_new_internal(scanner, &err_node);
 
             if(is_some(err_node.data.j_err)) {
-                if(is_some(key)) {
-                    free(key);
-                }
                 err = true;
                 break;
             } else if(is_null(key)) {
                 *oom = true;
-                skVec_drop(table, (FreeFn) skJsonNode_drop);
-                object_node.data.j_object = NULL;
+                skJsonNode_drop(&object_node);
                 return object_node;
             } else {
                 skScanner_next(scanner);
@@ -121,13 +117,14 @@ skJson skparse_json_object(skScanner* scanner, skJson* parent, bool* oom)
                 skScanner_next(scanner);
                 skScanner_skip(scanner, 1, SK_WS);
             }
-
+#ifdef SK_DBUG
+            assert(*oom == false);
+#endif
             value = skJsonNode_parse(scanner, &object_node, oom);
 
             if(*oom) {
                 free(key);
                 skJsonNode_drop(&object_node);
-                object_node.data.j_object = NULL;
                 return object_node;
             } else if(value.type == SK_ERROR_NODE) {
                 free(key);
@@ -146,10 +143,9 @@ skJson skparse_json_object(skScanner* scanner, skJson* parent, bool* oom)
             break;
         }
 
-        if(!skVec_push(table, &tuple)) {
+        if(!skVec_push(object_node.data.j_object, &tuple)) {
             *oom = true;
-            free(key);
-            skJsonNode_drop(&value);
+            skObjTuple_drop(&tuple);
             skJsonNode_drop(&object_node);
             return object_node;
         }
@@ -220,12 +216,13 @@ skJson skparse_json_array(skScanner* scanner, skJson* parent, bool* oom)
         } else {
             start = false;
         }
-
+#ifdef SK_DBUG
+        assert(*oom == false);
+#endif
         temp = skJsonNode_parse(scanner, &array_node, oom);
 
         if(*oom) {
             skJsonNode_drop(&array_node);
-            array_node.data.j_array = NULL;
             return array_node;
         } else if(temp.type == SK_ERROR_NODE) {
             parse_err = err = true;
@@ -236,7 +233,6 @@ skJson skparse_json_array(skScanner* scanner, skJson* parent, bool* oom)
             *oom = true;
             skJsonNode_drop(&temp);
             skJsonNode_drop(&array_node);
-            array_node.data.j_array = NULL;
             return array_node;
         } else {
             skScanner_skip(scanner, 2, SK_WS, SK_NL);
@@ -267,23 +263,22 @@ skJson skparse_json_array(skScanner* scanner, skJson* parent, bool* oom)
     return array_node;
 }
 
-/* Checks the validity of a string and allocates
- * storage for it if the json string is valid */
 skJsonString skJsonString_new_internal(skScanner* scanner, skJson* err)
 {
     size_t       bytes;
     skJsonString jstring;
     skStrSlice   slice;
 
-    slice = scanner->token.lexeme;
+    jstring = NULL;
+    slice   = scanner->token.lexeme;
 
-    if(slice.len != 0 && !skJsonString_isvalid(&slice)) {
+    if(slice.len > 0 && !skJsonString_isvalid(&slice)) {
         *err = ErrorNode_new("Invalid Json String\n", scanner->iter.state, NULL);
         return NULL;
     }
 
-    bytes = slice.len + sizeof("");
-    if(is_null(jstring = malloc(bytes))) {
+    bytes = slice.len + 1;
+    if(is_null((jstring = malloc(bytes)))) {
 #ifdef SK_ERRMSG
         THROW_ERR(OutOfMemory);
 #endif
@@ -291,7 +286,7 @@ skJsonString skJsonString_new_internal(skScanner* scanner, skJson* err)
     }
 
     jstring            = strncpy(jstring, slice.ptr, slice.len);
-    jstring[bytes - 1] = '\0';
+    jstring[slice.len] = '\0';
     return jstring;
 }
 
@@ -363,20 +358,23 @@ skJson skparse_json_string(skScanner* scanner, skJson* parent, bool* oom)
     } else if(is_null(jstring)) {
         *oom = true;
         return string_node;
-    } else {
-        skScanner_next(scanner);
     }
 
     string_node               = RawNode_new(SK_STRING_NODE, parent);
     string_node.data.j_string = jstring;
 
+    skScanner_next(scanner);
+#ifdef SK_DBUG
+    assert(*oom == false);
+#endif
     return string_node;
 }
 
-skJson skparse_json_number(skScanner* scanner, skJson* parent)
+skJson skparse_json_number(skScanner* scanner, skJson* parent, bool* oom)
 {
     skJsonInteger integ;
     skJsonDouble  dbl;
+    skJson        err_node;
     skToken       token;
     char*         start;
     char*         end;
@@ -384,27 +382,22 @@ skJson skparse_json_number(skScanner* scanner, skJson* parent)
     bool          integer;
     bool          fraction;
 
-    /* Flags for control flow and validity check */
     negative = false;
     integer  = false;
     fraction = false;
 
-    /* Fetch the first token (either a digit, zero or hyphen) */
     token = skScanner_peek(scanner);
     /* Start of the number stream */
     start = token.lexeme.ptr;
 
-    /* If first token is HYPHEN, we have a 'negative' number */
     if(token.type == SK_HYPHEN) {
         negative = true;
         token    = skScanner_next(scanner);
     }
 
-    /* If we have a digit (1-9) or zero (0) we have a integer part */
     if(token.type == SK_DIGIT || token.type == SK_ZERO) {
         integer = true;
 
-        /* Integer part is zero */
         if(token.type == SK_ZERO) {
             token = skScanner_next(scanner);
             if(token.type == SK_DIGIT || token.type == SK_ZERO) {
@@ -414,13 +407,10 @@ skJson skparse_json_number(skScanner* scanner, skJson* parent)
             skScanner_skip(scanner, 2, SK_DIGIT, SK_ZERO);
         }
     } else if(negative) {
-        /* Number can't be negative without integer part */
         goto jmp_err;
     }
 
-    /* Let's check if there is fraction */
     if(skScanner_peek(scanner).type == SK_DOT) {
-        /* Number with decimal dot must have integer part */
         if(!integer) {
             goto jmp_err;
         } else {
@@ -428,30 +418,24 @@ skJson skparse_json_number(skScanner* scanner, skJson* parent)
         }
 
         if((token = skScanner_peek(scanner)).type == SK_DIGIT || token.type == SK_ZERO) {
-            /* Fraction contains some digits, it is valid */
             fraction = true;
             skScanner_skip(scanner, 2, SK_DIGIT, SK_ZERO);
         }
 
-        /* If fraction is invalid, goto error */
         if(!fraction) {
             goto jmp_err;
         }
     }
 
-    /* Let's check if there is exponent */
     if(skScanner_peek(scanner).type == SK_EXP) {
-        /* If there is no fractional part, then we can't have exponent part */
         if(!fraction) {
             goto jmp_err;
         }
 
-        /* If exponent doesn't have a sign it is invalid, goto error */
         if((token = skScanner_next(scanner)).type != SK_HYPHEN && token.type != SK_PLUS) {
             goto jmp_err;
         }
 
-        /* Exponent must contain digit/s to be valid */
         if((token = skScanner_next(scanner)).type == SK_DIGIT || token.type == SK_ZERO) {
             skScanner_skip(scanner, 2, SK_DIGIT, SK_ZERO);
         } else {
@@ -459,8 +443,8 @@ skJson skparse_json_number(skScanner* scanner, skJson* parent)
         }
     }
 
-    /* Set the end of the token stream */
-    end = skCharIter_next_address(&scanner->iter) - 1;
+    /* End of number stream. */
+    end = skScanner_peek(scanner).lexeme.ptr;
 
     errno = 0;
     if(fraction) {
@@ -478,9 +462,15 @@ skJson skparse_json_number(skScanner* scanner, skJson* parent)
     }
 
 jmp_err:
-    return ErrorNode_new("failed to parse Json Number", scanner->iter.state, parent);
+    err_node = ErrorNode_new("failed to parse Json Number", scanner->iter.state, parent);
+    if(is_null(err_node.data.j_err)) {
+        *oom = true;
+    }
+    return err_node;
 }
 
+/* TODO: Transfer over the real parsing of raw data into here
+ * from the scanner module for booleans. */
 skJson skparse_json_bool(skScanner* scanner, skJson* parent)
 {
     skToken token;
@@ -497,6 +487,8 @@ skJson skparse_json_bool(skScanner* scanner, skJson* parent)
     }
 }
 
+/* TODO: Transfer over real parsing of raw data into here
+ * from the scanner module for null values. */
 skJson skparse_json_null(skScanner* scanner, skJson* parent)
 {
     skScanner_next(scanner);

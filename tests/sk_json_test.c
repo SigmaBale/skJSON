@@ -590,8 +590,10 @@ Test(skJsonFinal, ParseComplete)
     cr_assert_eq(skJson_array_back(ret)->type, SK_STRING_NODE);
     cr_assert_eq(skJson_array_index(ret, 1)->type, SK_STRING_NODE);
     cr_assert_eq(skJson_array_push_null(ret), true);
+    cr_assert_eq(skJson_array_len(ret), 4);
     cr_assert_eq(skJson_array_back(ret)->type, SK_NULL_NODE);
     cr_assert_eq(skJson_array_insert_bool(ret, false, 0), true);
+    cr_assert_eq(skJson_array_len(ret), 5);
     cr_assert_eq(skJson_array_front(ret)->type, SK_BOOL_NODE);
     cr_assert_eq(skJson_bool_value(skJson_array_front(ret)), false);
     cr_assert_eq(skJson_array_back(ret)->type, SK_NULL_NODE);
@@ -690,12 +692,18 @@ Test(skJsonFinal, ParseComplete)
     cr_assert(skJson_parent(node));
     cr_assert(skJson_parent_type(node) == SK_ARRAY_NODE);
     new_element = skJson_bool_new(true);
-    //cr_assert(skJson_object_insert_element(node, 0));
-    //cr_assert(skJson_array_insert_bool(node, false, 1));
-    //cr_assert(skJson_array_insert_double(node, 15.15, 0));
-    //cr_assert(skJson_array_insert_int(node, 100, 2));
-    //cr_assert(skJson_array_insert_ref(node, "Wow", 2));
-    //cr_assert(skJson_array_push_str(node, "Wow owned"));
+    cr_assert(skJson_object_insert_element(node, "key1", &new_element, 0));
+    cr_assert(skJson_object_insert_bool(node, "key2", false, 1));
+    cr_assert(skJson_object_insert_double(node, "key3", 15.15, 0));
+    cr_assert(skJson_object_insert_int(node, "key4", 100, 2));
+    cr_assert(skJson_object_insert_ref(node, "key5", "refstring", 2));
+    cr_assert(skJson_object_push_string(node, "key6", "ownedstring"));
+    cr_assert(skJson_object_len(node) == 6);
+    cr_assert(skJson_object_index(node, 0) != NULL);
+    cr_assert(skJson_object_index(node, 0)->key != NULL);
+    cr_assert(skJson_object_index(node, 0)->value.type == SK_DOUBLE_NODE);
+    cr_assert(skJson_object_index(node, 0)->value.data.j_double == 15.15);
+    cr_assert_str_eq(skJson_object_index(node, 0)->key, "key3");
 
     // out = skJson_serialize(json_final);
     // cr_assert(out != NULL);

@@ -123,7 +123,7 @@ skScanner_set_string_token(skScanner* scanner)
         if(c == EOF) {
             /* We reached end of file and string is invalid */
             scanner->token.type = SK_INVALID;
-            break;
+            return;
         }
     }
     iterator->state.in_jstring = false;
@@ -177,6 +177,9 @@ skScanner_set_bool_or_null_token(skScanner* scanner, char ch)
             }
             break;
         default:
+#ifdef SK_ERRMSG
+            THROW_ERR(UnreachableCode);
+#endif
 #ifdef SK_DBUG
             assert(false);
 #endif

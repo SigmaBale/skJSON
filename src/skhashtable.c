@@ -95,16 +95,14 @@ skHashTable_new(HashFn hash_fn, CmpKeyFn cmp_key, FreeKeyFn free_key, FreeValueF
 }
 
 /* Returns the current load factor. */
-static double
-_skHashTable_load_factor(const skHashTable* table)
+static double _skHashTable_load_factor(const skHashTable* table)
 {
     return (double) table->len / (double) skVec_capacity(table->storage);
 }
 
 /* Default hashing function */
 /* http://www.cse.yorku.ca/~oz/hash.html */
-static size_t
-_skHash_str(const char* str)
+static size_t _skHash_str(const char* str)
 {
     static const size_t HASHCONST = 5381;
     size_t              hash      = HASHCONST;
@@ -119,8 +117,7 @@ _skHash_str(const char* str)
 
 /* Expands the HashTable, if it fails the allocation it will
  print the err to stderr and return false. */
-static bool
-_skHashTable_expand(skHashTable* table)
+static bool _skHashTable_expand(skHashTable* table)
 {
     size_t         prime, i, old_cap, ele_size;
     skVec*         new_storage;
@@ -190,8 +187,7 @@ _skHashTable_expand(skHashTable* table)
     return true;
 }
 
-void*
-_skHashTable_probe(const skHashTable* table, const void* key, bool* found)
+void* _skHashTable_probe(const skHashTable* table, const void* key, bool* found)
 {
     skVec*      cells;
     size_t      storage_size;
@@ -218,8 +214,7 @@ _skHashTable_probe(const skHashTable* table, const void* key, bool* found)
     return cell;
 }
 
-void*
-skHashTable_get(const skHashTable* table, const void* key)
+void* skHashTable_get(const skHashTable* table, const void* key)
 {
     skHashCell* cell;
     bool        found;
@@ -242,8 +237,7 @@ skHashTable_get(const skHashTable* table, const void* key)
 }
 
 /* TODO: Make table copy the key */
-bool
-skHashTable_insert(skHashTable* table, const void* key, const void* value)
+bool skHashTable_insert(skHashTable* table, const void* key, const void* value)
 {
     bool        found;
     skHashCell* cell;
@@ -291,8 +285,7 @@ skHashTable_insert(skHashTable* table, const void* key, const void* value)
     return true;
 }
 
-bool
-skHashTable_remove(skHashTable* table, void* key)
+bool skHashTable_remove(skHashTable* table, void* key)
 {
     skHashCell* cell;
 
@@ -316,8 +309,7 @@ skHashTable_remove(skHashTable* table, void* key)
     return true;
 }
 
-static void
-_skHashCell_reset(skHashTable* table, skHashCell* cell)
+static void _skHashCell_reset(skHashTable* table, skHashCell* cell)
 {
     if(has_key_destructor(table)) {
         table->free_key(cell->key);
@@ -330,8 +322,7 @@ _skHashCell_reset(skHashTable* table, skHashCell* cell)
     cell->taken = false;
 }
 
-size_t
-skHashTable_len(const skHashTable* table)
+size_t skHashTable_len(const skHashTable* table)
 {
     if(is_null(table)) {
         return 0;
@@ -339,8 +330,7 @@ skHashTable_len(const skHashTable* table)
     return table->len;
 }
 
-bool
-skHashTable_contains(const skHashTable* table, const void* key)
+bool skHashTable_contains(const skHashTable* table, const void* key)
 {
     if(is_null(table)) {
         return false;
@@ -349,8 +339,7 @@ skHashTable_contains(const skHashTable* table, const void* key)
     return (is_null(skHashTable_get(table, key))) ? false : true;
 }
 
-skTableIter*
-skHashTable_into_iter(const skHashTable* table)
+skTableIter* skHashTable_into_iter(const skHashTable* table)
 {
     skHashCell*    current;
     skTableIter*   iter;
@@ -398,8 +387,7 @@ skHashTable_into_iter(const skHashTable* table)
     return iter;
 }
 
-skTableTuple
-skTableIter_next(skTableIter* iter)
+skTableTuple skTableIter_next(skTableIter* iter)
 {
     skHashCell*  cell;
     skTableTuple tuple;
@@ -421,8 +409,7 @@ skTableIter_next(skTableIter* iter)
     return tuple;
 }
 
-bool
-skTableIter_last(skTableIter* iter)
+bool skTableIter_last(skTableIter* iter)
 {
     if(is_null(iter)) {
         return true;
@@ -431,8 +418,7 @@ skTableIter_last(skTableIter* iter)
     return iter->index + 1 == iter->len;
 }
 
-void
-skTableIter_drop(skTableIter* iter)
+void skTableIter_drop(skTableIter* iter)
 {
     if(is_null(iter)) {
         return;
@@ -448,8 +434,7 @@ skTableIter_drop(skTableIter* iter)
     iter->len   = 0;
 }
 
-void
-skHashTable_drop(skHashTable* table)
+void skHashTable_drop(skHashTable* table)
 {
     size_t      size;
     skVec*      vec;

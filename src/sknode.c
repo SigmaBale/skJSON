@@ -8,7 +8,7 @@
 #include <string.h>
 
 /* Err msg buffer size */
-#define ERR_SIZE 100
+#define ERR_SIZE 200
 
 skJson RawNode_new(skNodeType type, const skJson* parent)
 {

@@ -20,6 +20,5 @@ strdup_ansi(const char* str)
     }
 
     memcpy(dup, str, len);
-
     return dup;
 }

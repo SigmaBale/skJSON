@@ -29,29 +29,33 @@ all: $(DBUG_DIR)/$(LIB) $(RELEASE_DIR)/$(LIB)
 $(DBUG_DIR)/$(LIB): $(DBUG_OBJFILES)
 	$(CC) -shared -o $@ $^
 
+$(DBUG_OBJFILES): | $(DBUG_OBJDIR)
+
 $(DBUG_OBJDIR)/%.o: $(SRCDIR)/%.c
 	$(CC) $(DBUG) $(DBUG_CFLAGS) -g -c -fPIC $< -o $@
 
 $(DBUG_OBJDIR): $(DBUG_DIR)
-	mkdir $@
+	mkdir -p $@
  
 $(DBUG_DIR): $(BUILD_DIR)
-	mkdir $@
+	mkdir -p $@
 
 $(RELEASE_DIR)/$(LIB): $(OBJFILES)
 	$(CC) -shared -o $@ $^
+
+$(OBJFILES): | $(OBJDIR)
 
 $(OBJDIR)/%.o: $(SRCDIR)/%.c
 	$(CC) $(CFLAGS) -c -fPIC $< -o $@
 
 $(OBJDIR): $(RELEASE_DIR)
-	mkdir $@
+	mkdir -p $@
 
 $(RELEASE_DIR): $(BUILD_DIR)
-	mkdir $@
+	mkdir -p $@
 
 $(BUILD_DIR):
-	mkdir $@
+	mkdir -p $@
 
 debug: $(DBUG_DIR)/$(LIB)
 

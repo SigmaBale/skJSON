@@ -1,6 +1,4 @@
 /* clang-format off */
-#include "sktypes.h"
-#include <stdbool.h>
 #ifdef SK_DBUG
 #include <assert.h>
 #endif
@@ -23,10 +21,10 @@
 /* Check if 'node' type matches with 'type'. */
 #define type_of(node, type)      ((node)->type == type)
 /* Link the node with the parent arena */
-#define link_parent(node, parent)                                   \
-    do {                                                            \
-        (node)->parent_arena.ptr  = ((char*) parent->data.j_array); \
-        (node)->parent_arena.type = parent->type;                   \
+#define link_parent(node, parent)                                             \
+    do {                                                                      \
+        (node)->parent_arena.ptr  = skVec_inner_unsafe(parent->data.j_array); \
+        (node)->parent_arena.type = parent->type;                             \
     } while(0)
 /* Unlinks the node from the parent */
 #define unlink_parent(node)           \
@@ -41,7 +39,7 @@
 /* Private typedefs */
 typedef struct _Serializer Serializer;
 typedef union _ArrayData   ArrayData;
-typedef bool (*InsertionFn)(void*, const void*);
+typedef bool (*CStrInsert)(skJson*, const char*);
 
 /* clang-format off */
 PRIVATE(void) drop_nonprim_elements(skJson* json);
@@ -49,7 +47,6 @@ PRIVATE(skJson) skJson_string_new_internal(const char* string, skNodeType type, 
 PRIVATE(skJson) skJson_constructor_internal(void* val, skNodeType type, skJson* parent);
 PRIVATE(bool) skJson_array_insert_internal(skJson* parent, const void* val, skNodeType type, size_t index, bool push, bool element);
 PRIVATE(bool) array_push_node_checked(skJson* json, skJson* node);
-PRIVATE(skJson) skJson_array_from_internal( ArrayData ptr, size_t count, size_t elesize, InsertionFn add_fn);
 PRIVATE(int) compare_tuples(const skObjTuple* a, const skObjTuple* b);
 PRIVATE(bool) skJson_object_insert_internal(skJson* parent, const char* key, const void* val, skNodeType type, size_t index, bool push, bool element);
 PRIVATE(Serializer) Serializer_new(size_t bufsize, bool expand);
@@ -79,7 +76,6 @@ struct _Serializer {
     bool           user_provided;
 };
 
-
 /* Create a new Json Element from the given buffer 'buff' of parsable text
  * with length 'bufsize', return NULL in case 'buff' and 'bufsize' are NULL or 0,
  * or if Json Element construction failed, otherwise return the root Json Element. */
@@ -98,12 +94,15 @@ PUBLIC(skJson) skJson_parse(char* buff, size_t bufsize)
 
     if(is_null(scanner = skScanner_new(buff, bufsize))) {
         return json;
-    } else {
-        skScanner_next(scanner); /* Fetch first token */
     }
 
+    /* Fetch first token */
+    skScanner_next(scanner); 
     /* Construct the parse tree */
     json = skJsonNode_parse(scanner, NULL, &oom);
+    if(oom == true) {
+        json.type = SK_NONE_NODE;
+    }
     /* We are done scanning */
     free(scanner);
 
@@ -135,17 +134,24 @@ PUBLIC(void) skJson_drop(skJson* json)
     skJson* old_node;
     size_t  idx;
 
+#ifndef SK_DBUG
+    if(is_null(json) || json->type == SK_DROPPED_NODE || json->type == SK_ERROR_NODE) {
+        return;
+    }
+#else
     if(is_null(json) || json->type == SK_DROPPED_NODE) {
         return;
     }
-
-    if(is_some(arena = json->parent_arena.ptr)) {
+#endif
+    arena = json->parent_arena.ptr;
+    if(is_some(arena)) {
         switch(json->parent_arena.type) {
             /* In case we are directly dropping value of the array_node, replace
              * it with null node instead. Actually removing the entry from array node
              * is done using array node functions defined on it. */
             case SK_ARRAY_NODE:
-                idx = ((char*) json - (char*) arena) / sizeof(skJson);
+                idx = ((char*) json - (char*) skVec_inner_unsafe((skVec*)arena)) 
+                    / sizeof(skJson);
 
                 null_node = RawNode_new(SK_NULL_NODE, NULL);
                 copylink(&null_node, json);
@@ -160,7 +166,8 @@ PUBLIC(void) skJson_drop(skJson* json)
                  * with null node instead, in order to remove an entry from object node
                  * you must use the functions defined for the object node. That is the
                  * only way to soundly drop the key/value pair and preserve json validity. */
-                idx = ((char*) json - (char*) arena) / sizeof(skObjTuple);
+                idx = ((char*) json - (char*) skVec_inner_unsafe((skVec*)arena)) 
+                    / sizeof(skObjTuple);
 
                 null_node = RawNode_new(SK_NULL_NODE, NULL);
                 copylink(&null_node, json);
@@ -439,7 +446,7 @@ PUBLIC(skJson*) skJson_transform_into_empty_object(skJson* json)
         return NULL;
     }
 
-    if(is_null(table = skVec_new(sizeof(skJson)))) {
+    if(is_null(table = skVec_new(sizeof(skObjTuple)))) {
         return NULL;
     }
 
@@ -568,12 +575,12 @@ PUBLIC(bool) skJson_string_set(skJson* json, const char* string)
     return true;
 }
 
-PUBLIC(skJson) skJson_stringlit_new(const char* string)
+PUBLIC(skJson) skJson_ref_new(const char* string)
 {
     return skJson_string_new_internal(string, SK_STRINGLIT_NODE, NULL);
 }
 
-PUBLIC(bool) skJson_stringlit_set(skJson* json, const char* string)
+PUBLIC(bool) skJson_ref_set(skJson* json, const char* string)
 {
     skStrSlice slice;
 
@@ -666,8 +673,10 @@ PRIVATE(bool) skJson_array_insert_internal(
         link_parent(&node, parent);
     }
 
-    if(push && !skVec_push(parent->data.j_array, &node)) {
-        fail = true;
+    if(push) {
+        if(!skVec_push(parent->data.j_array, &node)) {
+            fail = true;
+        }
     } else if(!skVec_insert(parent->data.j_array, &node, index)) {
         fail = true;
     }
@@ -853,98 +862,130 @@ PUBLIC(bool) skJson_array_insert_element(skJson* json, skJson* element, size_t i
     return skJson_array_insert_internal(json, element, SK_NONE_NODE, index, false, true);
 }
 
-PRIVATE(skJson) skJson_array_from_internal(
-        ArrayData ptr,
+
+PRIVATE(skJson) skJson_array_from_cstrs(
+        const char* const* strings,
         size_t count,
-        size_t elesize,
-        InsertionFn add_fn)
+        CStrInsert add_fn)
 {
     skJson arr_node;
+
+    if(is_null(strings)) {
+        arr_node.type = SK_NONE_NODE;
+        return arr_node;
+    }
 
     if((arr_node = ArrayNode_new(NULL)).type == SK_ERROR_NODE) {
         return arr_node;
     }
 
     while(count--) {
-        if(!add_fn(&arr_node, discard_const(*ptr.cstrs))) {
+        if(is_null(*strings) || !add_fn(&arr_node, *strings++)) {
             skJsonNode_drop(&arr_node);
             arr_node.data.j_array = NULL;
             arr_node.type = SK_ERROR_NODE;
             return arr_node;
         }
-        ptr.cstrs += elesize;
     }
 
     return arr_node;
 }
 
-/* TODO: Make wrapper around insertion function */
 PUBLIC(skJson) skJson_array_from_strings(const char* const* strings, size_t count)
 {
-    ArrayData ptr;
-    ptr.cstrs = strings;
-
-    return skJson_array_from_internal(
-            ptr,
+    return skJson_array_from_cstrs(
+            strings,
             count,
-            sizeof(char*),
-            (InsertionFn) skJson_array_push_str);
+            (CStrInsert) skJson_array_push_str);
 }
 
 PUBLIC(skJson) skJson_array_from_refs(const char* const* strings, size_t count)
 {
-    ArrayData ptr;
-    ptr.cstrs = strings;
-
-    return skJson_array_from_internal(
-            ptr,
+    return skJson_array_from_cstrs(
+            strings,
             count,
-            sizeof(char*),
-            (InsertionFn) skJson_array_push_ref);
+            (CStrInsert) skJson_array_push_ref);
 }
 
 PUBLIC(skJson) skJson_array_from_integers(const int* integers, size_t count)
 {
-    ArrayData ptr;
-    ptr.primitives = integers;
+    skJson arr_node;
 
-    return skJson_array_from_internal(
-            ptr,
-            count,
-            sizeof(int*),
-            (InsertionFn) skJson_array_push_int);
+    if(is_null(integers)) {
+        arr_node.type = SK_NONE_NODE;
+        return arr_node;
+    }
+
+    if((arr_node = ArrayNode_new(NULL)).type == SK_ERROR_NODE) {
+        return arr_node;
+    }
+
+    while(count--) {
+        if(!skJson_array_push_int(&arr_node, *integers++)) {
+            skJsonNode_drop(&arr_node);
+            arr_node.data.j_array = NULL;
+            arr_node.type = SK_ERROR_NODE;
+            return arr_node;
+        }
+    }
+
+    return arr_node;
 }
 
 PUBLIC(skJson) skJson_array_from_doubles(const double* doubles, size_t count)
 {
-    ArrayData ptr;
-    ptr.primitives = doubles;
+    skJson arr_node;
 
-    return skJson_array_from_internal(
-            ptr,
-            count,
-            sizeof(double*),
-            (InsertionFn) skJson_array_push_double);
+    if(is_null(doubles)) {
+        arr_node.type = SK_NONE_NODE;
+        return arr_node;
+    }
 
+    if((arr_node = ArrayNode_new(NULL)).type == SK_ERROR_NODE) {
+        return arr_node;
+    }
+
+    while(count--) {
+        if(!skJson_array_push_int(&arr_node, *doubles++)) {
+            skJsonNode_drop(&arr_node);
+            arr_node.data.j_array = NULL;
+            arr_node.type = SK_ERROR_NODE;
+            return arr_node;
+        }
+    }
+
+    return arr_node;
 }
 
 PUBLIC(skJson) skJson_array_from_booleans(const bool* booleans, size_t count)
 {
-    ArrayData ptr;
-    ptr.primitives = booleans;
+    skJson arr_node;
 
-    return skJson_array_from_internal(
-            ptr,
-            count,
-            sizeof(bool*),
-            (InsertionFn) skJson_array_push_bool);
+    if(is_null(booleans)) {
+        arr_node.type = SK_BOOL_NODE;
+        return arr_node;
+    }
 
+    if((arr_node = ArrayNode_new(NULL)).type == SK_ERROR_NODE) {
+        return arr_node;
+    }
+
+    while(count--) {
+        if(!skJson_array_push_int(&arr_node, *booleans++)) {
+            skJsonNode_drop(&arr_node);
+            arr_node.data.j_array = NULL;
+            arr_node.type = SK_ERROR_NODE;
+            return arr_node;
+        }
+    }
+
+    return arr_node;
 }
 
-/* Different function signature, can't use generic 'from' function. */
 PUBLIC(skJson) skJson_array_from_nulls(size_t count)
 {
     skJson arr_node;
+
     if((arr_node = ArrayNode_new(NULL)).type == SK_ERROR_NODE) {
         return arr_node;
     }
@@ -973,10 +1014,15 @@ PRIVATE(bool) array_push_node_checked(skJson* json, skJson* node)
     return true;
 }
 
-/* Different if branch, can't use internal generic 'from' function. */
 PUBLIC(skJson) skJson_array_from_elements(const skJson* const* elements, size_t count)
 {
     skJson arr_node;
+
+    if(is_null(elements)) {
+        arr_node.type = SK_NONE_NODE;
+        return arr_node;
+    }
+
     if((arr_node = ArrayNode_new(NULL)).type == SK_ERROR_NODE) {
         return arr_node;
     }
@@ -1093,7 +1139,7 @@ PUBLIC(skJson) skJson_object_new(void)
     return ObjectNode_new(NULL);
 }
 
-PUBLIC(bool) skJson_object_sort_ascending(skJson* json)
+PUBLIC(bool) skJson_object_sort(skJson* json)
 {
     if(!valid_with_type(json, SK_OBJECT_NODE)) {
 #ifdef SK_ERRMSG
@@ -1143,9 +1189,11 @@ PRIVATE(bool) skJson_object_insert_internal(
         return false;
     }
 
-    if(push && !skVec_push(parent->data.j_array, &tuple)) {
-        fail = true;
-    } else if(!skVec_insert(parent->data.j_array, &tuple, index)) {
+    if(push) {
+        if(!skVec_push(parent->data.j_object, &tuple)) {
+            fail = true;
+        }
+    } else if(!skVec_insert(parent->data.j_object, &tuple, index)) {
         fail = true;
     }
 
@@ -1160,7 +1208,6 @@ PRIVATE(bool) skJson_object_insert_internal(
     }
 
     return true;
-
 }
 
 PUBLIC(bool)
@@ -1267,6 +1314,30 @@ PUBLIC(bool) skJson_object_push_bool(skJson* json, const char *key, bool boolean
     return skJson_object_insert_internal(json, key, &boolean, SK_BOOL_NODE, 0, true, false);
 }
 
+PUBLIC(bool) skJson_object_push_null(skJson* json, const char *key)
+{
+    if(!valid_with_type(json, SK_OBJECT_NODE)) {
+#ifdef SK_ERRMSG
+        THROW_ERR(WrongNodeType);
+#endif
+        return false;
+    }
+
+    return skJson_object_insert_internal(json, key, NULL, SK_NULL_NODE, 0, true, false);
+}
+
+PUBLIC(bool) skJson_object_insert_null(skJson* json, const char *key, size_t index)
+{
+    if(!valid_with_type(json, SK_OBJECT_NODE)) {
+#ifdef SK_ERRMSG
+        THROW_ERR(WrongNodeType);
+#endif
+        return false;
+    }
+
+    return skJson_object_insert_internal(json, key, NULL, SK_NULL_NODE, 0, false, false);
+}
+
 PUBLIC(bool) skJson_object_insert_ref(
         skJson* json,
         const char *key,
@@ -1332,7 +1403,7 @@ PUBLIC(bool) skJson_object_remove(skJson* json, size_t index)
         return false;
     }
 
-    return skVec_remove(json->data.j_object, index, (FreeFn) skJsonNode_drop);
+    return skVec_remove(json->data.j_object, index, (FreeFn) skObjTuple_drop);
 }
 
 PUBLIC(bool)
@@ -1356,7 +1427,7 @@ skJson_object_remove_by_key(
         json->data.j_object,
         &dummy_tuple,
         (CmpFn) compare_tuples,
-        (FreeFn) skJsonNode_drop,
+        (FreeFn) skObjTuple_drop,
         sorted);
 }
 
@@ -1412,6 +1483,15 @@ PUBLIC(char*) skJson_objtuple_key(const skObjTuple* tuple)
     }
 
     return strdup_ansi(tuple->key);
+}
+
+PUBLIC(char*) skJson_objtuple_key_ref_unsafe(const skObjTuple* tuple)
+{
+    if(is_null(tuple)) {
+        return NULL;
+    }
+
+    return tuple->key;
 }
 
 PUBLIC(size_t) skJson_object_len(const skJson* json)
@@ -1588,9 +1668,7 @@ PRIVATE(void) Serializer_offset_update(Serializer* serializer)
     assert(is_some(serializer));
     assert(is_some(serializer->buffer));
 #endif
-    printf("Before updating offset -> %ld\n", serializer->offset);
     serializer->offset += strlen((char*) serializer->buffer + serializer->offset);
-    printf("After updating offset -> %ld\n", serializer->offset);
 }
 
 PUBLIC(unsigned char*)

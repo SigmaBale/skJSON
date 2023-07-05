@@ -104,9 +104,9 @@ PUBLIC(skJson) skJson_string_new(const char *string);
 PUBLIC(bool) skJson_string_set(skJson *json, const char *string);
 
 /* Create string Json element from 'string' by holding only a reference to it */
-PUBLIC(skJson) skJson_stringlit_new(const char *string);
+PUBLIC(skJson) skJson_ref_new(const char *string);
 /* Sets the new 'string' reference value for 'json' element. */
-PUBLIC(bool) skJson_stringlit_set(skJson *json, const char *string);
+PUBLIC(bool) skJson_ref_set(skJson *json, const char *string);
 
 /* Create an empty Json array element */
 PUBLIC(skJson) skJson_array_new(void);
@@ -166,14 +166,11 @@ PUBLIC(skJson *) skJson_array_back(skJson *json);
 PUBLIC(skJson *) skJson_array_index(skJson *json, size_t index);
 /* Clears the 'json' array, destroying its sub elements but preserving the wrapper allocation. */
 PUBLIC(void) skJson_array_clear(skJson* json);
-
 /* Create an empty Json object */
 PUBLIC(skJson) skJson_object_new(void);
-/* Sorts the 'json' object elements by its keys using default comparison function (strcmp)
- * using qsort. */
+/* Sorts the 'json' object elements by its keys using default comparison function (strcmp) using qsort. */
 PUBLIC(bool) skJson_object_sort(skJson* json);
 /* Sorts the 'json' object elements by its keys using user provided 'cmp_fn' using qsort. */
-
 /* TODO: IMPLEMENT SORTING FUNCTIONS */
 PUBLIC(bool) skJson_object_sort_key_by(skJson* json, CmpFn cmp_fn);
 /* Checks if the 'json' object is sorted with default comparison function (strcmp). */
@@ -193,7 +190,7 @@ PUBLIC(bool) skJson_object_push_element(skJson *json, const char *key, skJson *e
 PUBLIC(bool) skJson_object_push_int(skJson* json, const char *key, long int n);
 PUBLIC(bool) skJson_object_push_double(skJson* json, const char *key, double n);
 PUBLIC(bool) skJson_object_push_bool(skJson* json, const char *key, bool boolean);
-PUBLIC(bool) skJson_object_push_null(skJson* json, const char *key, size_t index);
+PUBLIC(bool) skJson_object_push_null(skJson* json, const char *key);
 PUBLIC(bool) skJson_object_push_ref(skJson* json, const char *key, const char *ref);
 PUBLIC(bool) skJson_object_push_string(skJson* json, const char *key, const char *string);
 /* Remove json element from 'json' object at 'index'. Return true upon success otherwise false. */
