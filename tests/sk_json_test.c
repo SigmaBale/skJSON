@@ -15,10 +15,25 @@ skJson       skparse_json_number(skScanner* scanner, skJson* parent);
 skJson       skparse_json_bool(skScanner* scanner, skJson* parent);
 skJson       skparse_json_null(skScanner* scanner, skJson* parent);
 int          cmp_tuples(skObjTuple* a, skObjTuple* b);
+int          cmp_tuples_descending(skObjTuple* a, skObjTuple* b);
 
 int cmp_tuples(skObjTuple* a, skObjTuple* b)
 {
     return strcmp(a->key, b->key);
+}
+
+int cmp_tuples_descending(skObjTuple* a, skObjTuple* b)
+{
+    int cmp;
+    cmp = strcmp(a->key, b->key);
+
+    if(cmp > 0) {
+        return -1;
+    } else if(cmp < 0) {
+        return 1;
+    }
+
+    return 0;
 }
 
 skScanner* scanner;
@@ -683,8 +698,10 @@ Test(skJsonFinal, ParseComplete)
     cr_assert(skJson_array_push_element(node, &new_element));
     new_element = skJson_bool_new(true);
     cr_assert(skJson_array_push_element(node, &new_element));
+    new_element = skJson_ref_new("Reference");
+    cr_assert(skJson_array_insert_element(node, &new_element, 6));
     cr_assert(skJson_parent_type(node) == SK_ARRAY_NODE);
-    cr_assert(skJson_array_len(node) == 8);
+    cr_assert(skJson_array_len(node) == 9);
 
     cr_assert(skJson_transform_into_empty_object(node)->data.j_object != NULL);
     cr_assert(skJson_object_len(node) == 0);
@@ -704,9 +721,57 @@ Test(skJsonFinal, ParseComplete)
     cr_assert(skJson_object_index(node, 0)->value.type == SK_DOUBLE_NODE);
     cr_assert(skJson_object_index(node, 0)->value.data.j_double == 15.15);
     cr_assert_str_eq(skJson_object_index(node, 0)->key, "key3");
+    cr_assert(skJson_object_remove(node, 0));
+    cr_assert(skJson_object_len(node) == 5);
+    cr_assert(skJson_object_remove(node, 2));
+    cr_assert(skJson_object_len(node) == 4);
+    cr_assert(skJson_object_remove(node, 4) == false);
+    cr_assert(skJson_object_len(node) == 4);
+    cr_assert(skJson_object_remove(node, 3));
+    cr_assert(skJson_object_len(node) == 3);
+    skObjTuple tuple;
+    cr_assert(skJson_object_pop(node, &tuple));
+    skObjTuple_drop(&tuple);
+    cr_assert(skJson_object_len(node) == 2);
+    cr_assert(skJson_object_pop(node, &tuple));
+    skObjTuple_drop(&tuple);
+    cr_assert(skJson_object_len(node) == 1);
+    cr_assert(skJson_object_pop(node, &tuple));
+    skObjTuple_drop(&tuple);
+    cr_assert(skJson_object_len(node) == 0);
+    cr_assert(skJson_object_push_int(node, "key5", 55));
+    cr_assert(skJson_object_push_int(node, "key2", 22));
+    cr_assert(skJson_object_push_int(node, "key4", 44));
+    cr_assert(skJson_object_push_int(node, "key3", 33));
+    cr_assert(skJson_object_push_int(node, "key1", 11));
+    cr_assert_str_eq(skJson_object_index(node, 0)->key, "key5");
+    cr_assert_str_eq(skJson_object_index(node, 1)->key, "key2");
+    cr_assert_str_eq(skJson_object_index(node, 2)->key, "key4");
+    cr_assert_str_eq(skJson_object_index(node, 3)->key, "key3");
+    cr_assert_str_eq(skJson_object_index(node, 4)->key, "key1");
+    cr_assert_not(skJson_object_is_sorted(node));
+    cr_assert(skJson_object_sort(node));
+    cr_assert(skJson_object_is_sorted(node));
+    cr_assert_str_eq(skJson_object_index(node, 0)->key, "key1");
+    cr_assert_str_eq(skJson_object_index(node, 1)->key, "key2");
+    cr_assert_str_eq(skJson_object_index(node, 2)->key, "key3");
+    cr_assert_str_eq(skJson_object_index(node, 3)->key, "key4");
+    cr_assert_str_eq(skJson_object_index(node, 4)->key, "key5");
+    cr_assert(skJson_object_sort_by(node, (CmpFn) cmp_tuples_descending));
+    cr_assert_str_eq(skJson_object_index(node, 0)->key, "key5");
+    cr_assert_str_eq(skJson_object_index(node, 1)->key, "key4");
+    cr_assert_str_eq(skJson_object_index(node, 2)->key, "key3");
+    cr_assert_str_eq(skJson_object_index(node, 3)->key, "key2");
+    cr_assert_str_eq(skJson_object_index(node, 4)->key, "key1");
+    cr_assert(skJson_object_is_sorted(node) == false);
+    cr_assert(skJson_object_is_sorted_by(node, (CmpFn) cmp_tuples_descending));
+    cr_assert_str_eq(
+        skJson_object_index(node, 2)->key,
+        skJson_object_index_by_key(node, "key3", false)->key);
 
-    // out = skJson_serialize(json_final);
-    // cr_assert(out != NULL);
-    // printf("\n\n");
-    // printf("%s\n\n", out);
+    /* Serializer */
+    unsigned char* out;
+    out = skJson_serialize(&json_final);
+    cr_assert(out != NULL);
+    free(out);
 }

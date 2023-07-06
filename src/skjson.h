@@ -153,7 +153,7 @@ PUBLIC(skJson) skJson_array_from_nulls(size_t count);
 /* Create Json array from array 'elements' of 'count' Json elements */
 PUBLIC(skJson) skJson_array_from_elements(const skJson *const *elements, size_t count);
 /* Pop Json element from 'json' array */
-PUBLIC(skJson) skJson_array_pop(skJson *json);
+PUBLIC(bool) skJson_array_pop(skJson *json, skJson* element);
 /* Remove Json element from 'json' array at 'index' */
 PUBLIC(bool) skJson_array_remove(skJson *json, size_t index);
 /* Return 'json' array length */
@@ -168,15 +168,6 @@ PUBLIC(skJson *) skJson_array_index(skJson *json, size_t index);
 PUBLIC(void) skJson_array_clear(skJson* json);
 /* Create an empty Json object */
 PUBLIC(skJson) skJson_object_new(void);
-/* Sorts the 'json' object elements by its keys using default comparison function (strcmp) using qsort. */
-PUBLIC(bool) skJson_object_sort(skJson* json);
-/* Sorts the 'json' object elements by its keys using user provided 'cmp_fn' using qsort. */
-/* TODO: IMPLEMENT SORTING FUNCTIONS */
-PUBLIC(bool) skJson_object_sort_key_by(skJson* json, CmpFn cmp_fn);
-/* Checks if the 'json' object is sorted with default comparison function (strcmp). */
-PUBLIC(bool) skJson_object_is_sorted(skJson* json);
-/* Checks if the 'json' object is sorted with user provided 'cmp_fn'. */
-PUBLIC(bool) skJson_object_is_sorted_by(skJson* json, CmpFn cmp_fn);
 /* Insert key-value pairs into 'json' object at 'index'. */
 PUBLIC(bool) skJson_object_insert_element(skJson *json, const char *key, skJson *elementp, size_t index);
 PUBLIC(bool) skJson_object_insert_int(skJson* json, const char *key, long int n, size_t index);
@@ -195,20 +186,34 @@ PUBLIC(bool) skJson_object_push_ref(skJson* json, const char *key, const char *r
 PUBLIC(bool) skJson_object_push_string(skJson* json, const char *key, const char *string);
 /* Remove json element from 'json' object at 'index'. Return true upon success otherwise false. */
 PUBLIC(bool) skJson_object_remove(skJson *json, size_t index);
+/* Pop the json element from the 'json' object. */
+PUBLIC(bool) skJson_object_pop(skJson* json, skObjTuple* tuple);
+/* Sorts the 'json' object elements by its keys using default comparison function (strcmp) using qsort. */
+PUBLIC(bool) skJson_object_sort(skJson* json);
+/* Sorts the 'json' object elements by its keys using user provided 'cmp_fn' using qsort. */
+PUBLIC(bool) skJson_object_sort_by(skJson* json, CmpFn cmp_fn);
+/* Checks if the 'json' object is sorted with default comparison function (strcmp). */
+PUBLIC(bool) skJson_object_is_sorted(skJson* json);
+/* Checks if the 'json' object is sorted with user provided 'cmp_fn'. */
+PUBLIC(bool) skJson_object_is_sorted_by(skJson* json, CmpFn cmp_fn);
+/* Get ObjTuple (key,value pair) from 'json' object at 'index'. */
+PUBLIC(skObjTuple*) skJson_object_index(const skJson *json, size_t index);
 /* Remove element by 'key', if the 'json' object is sorted and 'sorted' is set, search is done using binary
  * search, otherwise key comparison is done using linear search. If the object is not sorted 
  * and users sets the 'sorted' flag then the search is undefined. */
-PUBLIC(bool) skJson_object_remove_by_key(skJson* json, const char* key, bool sorted);
-/* Get ObjTuple (key,value pair) from 'json' object at 'index'. */
-PUBLIC(skObjTuple*) skJson_object_index(const skJson *json, size_t index);
-/* Get element associated with the 'key' from the 'json' object.
- * Searching is done using binary search if object is sorted, otherwise linear search is used.
- * Return NULL if element was not found or input arguments are invalid. */
 PUBLIC(skObjTuple*) skJson_object_index_by_key(const skJson* json, const char* key, bool sorted);
+/* Get element associated with the 'key' from the 'json' object.
+ * Searching is done using binary search using 'cmp' function for comparison.
+ * By sorted meaning that the object elements are sorted by key lexicographically.
+ * In order to sort the object lexicographically 
+ * Return NULL if element was not found or input arguments are invalid. */
+PUBLIC(skObjTuple*) skJson_object_index_by_cmp(const skJson* json, const char* key, CmpFn cmp);
 /* Returns the value from the key-value 'tuple'. */
 PUBLIC(skJson*) skJson_objtuple_value(const skObjTuple* tuple);
 /* Returns duplicated key (cstring) from the key-value 'tuple'. */
 PUBLIC(char*) skJson_objtuple_key(const skObjTuple* tuple);
+/* Returns pointer to key (cstring) from the key-value 'tuple'. */
+PUBLIC(char*) skJson_objtuple_key_ref_unsafe(const skObjTuple* tuple);
 /* Returns the number of Json elements in 'json' object */
 PUBLIC(size_t) skJson_object_len(const skJson *json);
 /* Checks if there is a Json element associated with the 'key' in the 'json' object.
@@ -216,6 +221,11 @@ PUBLIC(size_t) skJson_object_len(const skJson *json);
  * sorted and 'sorted' is set, then the search in undefined and result is undefined. 
  * If 'sorted' is not set then the linear search is performed. */
 PUBLIC(bool) skJson_object_contains(const skJson* json, const char* key, bool sorted);
+/* Get element associated with the 'key' from the 'json' object.
+ * Searching is done using binary search if 'cmp' function is provided, otherwise linear search is used.
+ * Providing 'cmp' function while 'json' object is not sorted according to it is undefined behaviour.
+ * Return NULL if element was not found or input arguments are invalid */
+PUBLIC(bool) skJson_object_remove_by_key(skJson* json, const char* key, bool sorted);
 /* Clears the 'json' object, destroying its sub elements but preserving the wrapper allocation. */
 PUBLIC(void) skJson_object_clear(skJson* json);
 

@@ -255,6 +255,17 @@ bool skVec_sort(skVec* vec, CmpFn cmp)
     return true;
 }
 
+bool skVec_is_sorted(skVec* vec, CmpFn cmp)
+{
+    size_t i;
+    for(i = 0; i < vec->len - 1; i++) {
+        if(cmp(_skVec_get(vec, i), _skVec_get(vec, i + 1)) > 0) {
+            return false;
+        }
+    }
+    return true;
+}
+
 bool skVec_remove_by_key(skVec* vec, const void* key, CmpFn cmp, FreeFn free_fn, bool sorted)
 {
     void*  current;
@@ -313,24 +324,16 @@ void* skVec_index(const skVec* vec, const size_t index)
     return _skVec_get(vec, index);
 }
 
-void* skVec_pop(skVec* vec)
+bool skVec_pop(skVec* vec, void* dst)
 {
-    void* retval;
-
-    if(is_null(vec) || vec->len == 0) {
-        return NULL;
+    if(is_null(vec) || vec->len == 0 || is_null(dst)) {
+        return false;
     }
-
-    retval = malloc(vec->ele_size);
-    if(is_null(retval)) {
-#ifdef SK_ERRMSG
-        THROW_ERR(OutOfMemory);
+#ifdef SK_DBUG
+    assert(_skVec_get(vec, vec->len - 1) != NULL);
 #endif
-        return NULL;
-    }
-
-    memcpy(retval, _skVec_get(vec, --vec->len), vec->ele_size);
-    return retval;
+    memcpy(dst, _skVec_get(vec, --vec->len), vec->ele_size);
+    return true;
 }
 
 size_t skVec_len(const skVec* vec)

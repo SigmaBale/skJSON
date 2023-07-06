@@ -12,7 +12,7 @@ skVec *skVec_with_capacity(const size_t ele_size, const size_t capacity);
 
 bool skVec_push(skVec *vec, const void *element);
 
-void *skVec_pop(skVec *vec);
+bool skVec_pop(skVec *vec, void* dst);
 
 size_t skVec_len(const skVec *vec);
 
@@ -31,6 +31,8 @@ bool skVec_remove_by_key(skVec *vec, const void *key, CmpFn cmp, FreeFn free_fn,
                          bool sorted);
 
 bool skVec_sort(skVec *vec, CmpFn cmp);
+
+bool skVec_is_sorted(skVec* vec, CmpFn cmp);
 
 void skVec_drop(skVec *vec, FreeFn free_fn);
 
