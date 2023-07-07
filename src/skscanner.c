@@ -15,8 +15,7 @@
 
 #define in_iter_bounds(iter, bound) ((iter)->end >= (bound))
 
-skScanner*
-skScanner_new(void* buffer, size_t bufsize)
+skScanner* skScanner_new(void* buffer, size_t bufsize)
 {
     skScanner* scanner;
 
@@ -38,14 +37,12 @@ skScanner_new(void* buffer, size_t bufsize)
     return scanner;
 }
 
-skToken
-skScanner_peek(const skScanner* scanner)
+skToken skScanner_peek(const skScanner* scanner)
 {
     return scanner->token;
 }
 
-void
-skScanner_skip(skScanner* scanner, size_t n, ...)
+void skScanner_skip(skScanner* scanner, size_t n, ...)
 {
     skToken      token;
     /* Variable sized arrays are not supported by C90 */
@@ -72,8 +69,7 @@ skScanner_skip(skScanner* scanner, size_t n, ...)
     va_end(ap);
 }
 
-void
-skScanner_skip_until(skScanner* scanner, size_t n, ...)
+void skScanner_skip_until(skScanner* scanner, size_t n, ...)
 {
     skToken      token;
     /* Variable sized arrays are not supported by C90 */
@@ -102,8 +98,7 @@ skScanner_skip_until(skScanner* scanner, size_t n, ...)
     }
 }
 
-static void
-skScanner_set_string_token(skScanner* scanner)
+static void skScanner_set_string_token(skScanner* scanner)
 {
     int         c;
     size_t      len;
@@ -132,8 +127,7 @@ skScanner_set_string_token(skScanner* scanner)
     token->lexeme.len = len;
 }
 
-static void
-skScanner_set_bool_or_null_token(skScanner* scanner, char ch)
+static void skScanner_set_bool_or_null_token(skScanner* scanner, char ch)
 {
     char*       start;
     skCharIter* iter;
@@ -154,6 +148,8 @@ skScanner_set_bool_or_null_token(skScanner* scanner, char ch)
                 assert(*(skCharIter_next_address(iter) - 1) == 'e');
 #endif
                 scanner->token.lexeme.len = 4;
+            } else {
+                scanner->token.type = SK_INVALID;
             }
             break;
         case 'f':
@@ -164,6 +160,8 @@ skScanner_set_bool_or_null_token(skScanner* scanner, char ch)
                 assert(*(skCharIter_next_address(iter) - 1) == 'e');
 #endif
                 scanner->token.lexeme.len = 5;
+            } else {
+                scanner->token.type = SK_INVALID;
             }
             break;
         case 'n':
@@ -174,6 +172,8 @@ skScanner_set_bool_or_null_token(skScanner* scanner, char ch)
                 assert(*(skCharIter_next_address(iter) - 1) == 'l');
 #endif
                 scanner->token.lexeme.len = 4;
+            } else {
+                scanner->token.type = SK_INVALID;
             }
             break;
         default:
@@ -187,8 +187,7 @@ skScanner_set_bool_or_null_token(skScanner* scanner, char ch)
     }
 }
 
-static skToken
-skToken_new(skTokenType type, char* start, size_t len)
+static skToken skToken_new(skTokenType type, char* start, size_t len)
 {
     skToken token;
     token.type   = type;
@@ -196,8 +195,7 @@ skToken_new(skTokenType type, char* start, size_t len)
     return token;
 }
 
-skToken
-skScanner_next(skScanner* scanner)
+skToken skScanner_next(skScanner* scanner)
 {
     skToken* token = &scanner->token;
     int      c;

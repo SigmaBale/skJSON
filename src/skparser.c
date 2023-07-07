@@ -160,7 +160,7 @@ skJson skparse_json_object(skScanner* scanner, skJson* parent, bool* oom)
             return value;
         } else {
             err_node
-                = ErrorNode_new("failed parsing json object", scanner->iter.state, parent);
+                = ErrorNode_new("failed parsing Json Object", scanner->iter.state, parent);
 
             if(is_null(err_node.data.j_err)) {
                 *oom = true;
@@ -246,7 +246,7 @@ skJson skparse_json_array(skScanner* scanner, skJson* parent, bool* oom)
         if(parse_err) {
             return temp;
         } else {
-            temp = ErrorNode_new("failed parsing json array", scanner->iter.state, parent);
+            temp = ErrorNode_new("failed parsing Json Array", scanner->iter.state, parent);
             if(is_null(temp.data.j_err)) {
                 *oom = true;
             }
@@ -469,8 +469,6 @@ jmp_err:
     return err_node;
 }
 
-/* TODO: Transfer over the real parsing of raw data into here
- * from the scanner module for booleans. */
 skJson skparse_json_bool(skScanner* scanner, skJson* parent)
 {
     skToken token;
@@ -487,8 +485,6 @@ skJson skparse_json_bool(skScanner* scanner, skJson* parent)
     }
 }
 
-/* TODO: Transfer over real parsing of raw data into here
- * from the scanner module for null values. */
 skJson skparse_json_null(skScanner* scanner, skJson* parent)
 {
     skScanner_next(scanner);

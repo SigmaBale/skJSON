@@ -10,6 +10,7 @@ typedef int (*CmpFn)(const void *, const void *);
 
 typedef void (*FreeFn)(void *);
 
+#ifndef __SK_JSON_H__
 #ifdef bool
 #undef bool
 #endif
@@ -24,5 +25,6 @@ typedef void (*FreeFn)(void *);
 #undef false
 #endif
 #define false ((skJsonBool)0)
+#endif
 
 #endif

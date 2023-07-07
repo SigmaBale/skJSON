@@ -8,17 +8,15 @@
 /********* Json Element types **********/
 typedef enum {
   SK_ERROR_NODE = 0,
-  SK_OBJECT_NODE = 1,
-  SK_ARRAY_NODE = 2,
-  SK_STRING_NODE = 3,
-  SK_STRINGLIT_NODE = 4,
-  SK_INT_NODE = 5,
-  SK_DOUBLE_NODE = 6,
-  SK_BOOL_NODE = 7,
-  SK_NULL_NODE = 8,
-  SK_MEMBER_NODE = 9,
-  SK_DROPPED_NODE = 10,
-  SK_NONE_NODE = 11
+  SK_OBJECT_NODE = 2,
+  SK_ARRAY_NODE = 4,
+  SK_STRING_NODE = 8,
+  SK_REFERENCE_NODE = 16,
+  SK_INT_NODE = 32,
+  SK_DOUBLE_NODE = 64,
+  SK_BOOL_NODE = 128,
+  SK_NULL_NODE = 256,
+  SK_NONE_NODE = 512
 } skNodeType;
 
 typedef struct _skJsonNode skJson;

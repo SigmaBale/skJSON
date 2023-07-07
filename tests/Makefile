@@ -1,17 +1,17 @@
 LIB = ../build/debug/libskjson.so
-BIN = parser_test
-LEAKBIN = parser_leak_test
+BIN = skJSON_test
+LEAKBIN = skJSON_leak_test
 BUILD_DIR = build
-SRCDIR = .
 OBJDIR := $(BUILD_DIR)/obj
 
-CFILES := $(foreach dir,$(SRCDIR),$(wildcard $(dir)/*.c))
+CFILES := $(wildcard *.c)
 OBJECTS := $(patsubst %.c,$(OBJDIR)/%.o,$(CFILES))
 DEPFILES := $(patsubst %.o,%.d,$(OBJECTS))
+INPUT_FILES := $(wildcard *.json)
 
 CC = gcc
 DEPFLAGS = -MD -MP
-SANITIZER_FLAGS = -fsanitize=address -O0 -fno-omit-frame-pointer
+SANITIZER_FLAGS = -fsanitize=address -fsanitize=undefined -fno-omit-frame-pointer
 CFLAGS = -Werror -Wall -Wextra -Wpedantic -std=c99 $(DEPFLAGS)
 
 all: $(BUILD_DIR)/$(BIN)
@@ -19,27 +19,36 @@ all: $(BUILD_DIR)/$(BIN)
 $(BUILD_DIR)/$(BIN): $(OBJECTS) $(LIB)
 	$(CC) $(CFLAGS) -g -L../build/debug $^ -lskjson -lcriterion -o $@
 
-$(OBJDIR)/%.o:%.c
+$(OBJDIR)/%.o:%.c | $(OBJDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(OBJDIR): $(BUILD_DIR)
-	mkdir $@
+	mkdir -p $@
 
 $(BUILD_DIR):
-	mkdir $@
+	mkdir -p $@
+	$(foreach json,$(INPUT_FILES),cp $(json) $(BUILD_DIR)/.;)
 
-test: $(BUILD_DIR)/$(BIN)
+test: all
 	./$(BUILD_DIR)/$(BIN);
 
-test-leak: $(BUILD_DIR)/$(LEAKBIN)
+test-valgrind: all
+	valgrind \
+		--leak-check=full \
+		--show-leak-kinds=all \
+		--track-origins=yes \
+		--verbose \
+		./$(BUILD_DIR)/$(BIN)
+
+test-sanitizer: $(BUILD_DIR)/$(LEAKBIN)
 	./$(BUILD_DIR)/$(LEAKBIN)
 
 $(BUILD_DIR)/$(LEAKBIN): $(OBJECTS) $(LIB)
-	$(CC) $(CFLAGS) $(SANITIZER_FLAGS) -g -L../build/debug $^ -lskjson -lcriterion -o $@
+	$(CC) $(CFLAGS) $(SANITIZER_FLAGS) $^ -o $@ -g -L../build/debug -lskjson -lcriterion
 
 clean:
-	rm -rf $(BUILD_DIR)/$(BIN) $(BUILD_DIR)/$(LEAKBIN) $(DEPFILES) $(OBJECTS)
+	rm -rf $(BUILD_DIR)
 
 -include $(DEP_FILES)
 
-.PHONY: all test clean test-leak
+.PHONY: all test clean test-sanitizer test-valgrind

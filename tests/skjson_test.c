@@ -2,7 +2,6 @@
 #include "../src/skparser.h"
 #include "../src/skjson.h"
 #include <criterion/criterion.h>
-#include <criterion/internal/assert.h>
 #include <fcntl.h>
 #include <unistd.h>
 /* clang-format on */
@@ -43,9 +42,8 @@ int        n;
 
 void json_setup(void)
 {
-    printf("\n\n\n");
-    if((fd = open("test.json", 'r')) == -1) {
-        fprintf(stderr, "Error opening test.json\n");
+    if((fd = open("error.json", 'r')) == -1) {
+        fprintf(stderr, "Error opening error.json\n");
         exit(EXIT_FAILURE);
     }
 
@@ -65,7 +63,6 @@ TestSuite(SkJson, .init = json_setup, .fini = json_teardown);
 Test(SkJson, ParseTokens)
 {
     cr_assert(scanner != NULL);
-
     skToken token = skScanner_next(scanner);
     cr_assert(SK_LCURLY == token.type);
     cr_assert(SK_LCURLY == skScanner_peek(scanner).type);
@@ -252,7 +249,7 @@ Test(SkJson, ParsePrimitives)
     cr_assert_eq(strcmp(str_node.data.j_string, "glossary"), 0);
     cr_assert(str_node.type == SK_STRING_NODE);
     skJson_drop(&str_node);
-    cr_assert(str_node.type == SK_DROPPED_NODE);
+    cr_assert(str_node.type == SK_NONE_NODE);
 
     skScanner_skip_until(scanner, 1, SK_DIGIT);
     token = skScanner_peek(scanner);
@@ -262,7 +259,7 @@ Test(SkJson, ParsePrimitives)
     cr_assert_eq(num_node.data.j_int, 152);
     cr_assert_eq(num_node.type, SK_INT_NODE);
     skJson_drop(&num_node);
-    cr_assert(num_node.type == SK_DROPPED_NODE);
+    cr_assert(num_node.type == SK_NONE_NODE);
 
     skScanner_skip_until(scanner, 1, SK_HYPHEN);
     token = skScanner_peek(scanner);
@@ -272,27 +269,27 @@ Test(SkJson, ParsePrimitives)
     cr_assert(dbl_node.type == SK_DOUBLE_NODE);
     cr_assert(dbl_node.data.j_double == -12.523e15);
     skJson_drop(&dbl_node);
-    cr_assert(dbl_node.type == SK_DROPPED_NODE);
+    cr_assert(dbl_node.type == SK_NONE_NODE);
 
     skScanner_skip_until(scanner, 1, SK_TRUE);
     skJson bool_node = skparse_json_bool(scanner, NULL);
     cr_assert(bool_node.type == SK_BOOL_NODE);
     cr_assert(bool_node.data.j_boolean == true);
     skJson_drop(&bool_node);
-    cr_assert(bool_node.type == SK_DROPPED_NODE);
+    cr_assert(bool_node.type == SK_NONE_NODE);
 
     skScanner_skip_until(scanner, 1, SK_FALSE);
     bool_node = skparse_json_bool(scanner, NULL);
     cr_assert(bool_node.type == SK_BOOL_NODE);
     cr_assert(bool_node.data.j_boolean == false);
     skJson_drop(&bool_node);
-    cr_assert(bool_node.type == SK_DROPPED_NODE);
+    cr_assert(bool_node.type == SK_NONE_NODE);
 
     skScanner_skip_until(scanner, 1, SK_NULL);
     skJson null_node = skparse_json_null(scanner, NULL);
     cr_assert(null_node.type == SK_NULL_NODE);
     skJson_drop(&null_node);
-    cr_assert(null_node.type == SK_DROPPED_NODE);
+    cr_assert(null_node.type == SK_NONE_NODE);
 
     skScanner_skip_until(scanner, 1, SK_ZERO);
     cr_assert(SK_ZERO == (token = skScanner_peek(scanner)).type);
@@ -300,14 +297,13 @@ Test(SkJson, ParsePrimitives)
     skJson err_node = skparse_json_number(scanner, NULL);
     cr_assert(SK_ERROR_NODE == err_node.type);
     skJson_drop(&err_node);
-    cr_assert(err_node.type == SK_DROPPED_NODE);
+    cr_assert(err_node.type == SK_NONE_NODE);
 }
 
-void json_setup_complex(void)
+void json_setup_simple(void)
 {
-    printf("\n\n\n");
-    if((fd = open("complex.json", 'r')) == -1) {
-        fprintf(stderr, "Error opening complex.json\n");
+    if((fd = open("simple.json", 'r')) == -1) {
+        fprintf(stderr, "Error opening simple.json\n");
         exit(EXIT_FAILURE);
     }
 
@@ -316,7 +312,7 @@ void json_setup_complex(void)
     scanner = skScanner_new(buf, n);
 }
 
-TestSuite(skJsonComplex, .init = json_setup_complex, .fini = json_teardown);
+TestSuite(skJsonComplex, .init = json_setup_simple, .fini = json_teardown);
 
 Test(skJsonComplex, ParseObjects)
 {
@@ -383,7 +379,7 @@ Test(skJsonComplex, ParseObjects)
     cr_assert(temp->parent_arena.ptr != NULL);
     cr_assert(skVec_len((skVec*) temp->parent_arena.ptr) == 7);
     skJson_drop(&arr_node);
-    cr_assert(arr_node.type == SK_DROPPED_NODE);
+    cr_assert(arr_node.type == SK_NONE_NODE);
 
     cr_assert(skScanner_peek(scanner).type == SK_COMMA);
     cr_assert((token = skScanner_next(scanner)).type == SK_NL);
@@ -399,7 +395,7 @@ Test(skJsonComplex, ParseObjects)
     cr_assert_str_eq(json_string.data.j_string, "obj");
     cr_assert(json_string.parent_arena.ptr == NULL);
     skJson_drop(&json_string);
-    cr_assert(json_string.type == SK_DROPPED_NODE);
+    cr_assert(json_string.type == SK_NONE_NODE);
 
     cr_assert((token = skScanner_next(scanner)).type == SK_COLON);
     cr_assert((token = skScanner_next(scanner)).type == SK_WS);
@@ -440,7 +436,7 @@ Test(skJsonComplex, ParseObjects)
     cr_assert(tuple->value.type == SK_BOOL_NODE);
 
     skJson_drop(&json_object);
-    cr_assert(json_object.type = SK_DROPPED_NODE);
+    cr_assert(json_object.type = SK_NONE_NODE);
 }
 
 Test(skJsonComplex, ParseWhole)
@@ -468,7 +464,7 @@ Test(skJsonComplex, ParseWhole)
     cr_assert(skVec_contains(table, &dummytuple, (CmpFn) cmp_tuples, false));
 
     skJson_drop(&root);
-    cr_assert(root.type == SK_DROPPED_NODE);
+    cr_assert(root.type == SK_NONE_NODE);
 }
 
 skJson json_final;
@@ -636,9 +632,9 @@ Test(skJsonFinal, ParseComplete)
         "YkOxJCXmPUWZbhjpCg56i+2aB6CmK2JGhn57K5mj0MNdBXA4/"
         "WnwH6XoPWJzK5Nyu2zB3nAZp+S5hpQs+p1vN1/wsjk="));
     cr_assert_eq(skJson_array_len(ret), 3);
-    cr_assert_eq(skJson_array_front(ret)->type, SK_STRINGLIT_NODE);
-    cr_assert_eq(skJson_array_back(ret)->type, SK_STRINGLIT_NODE);
-    cr_assert_eq(skJson_array_index(ret, 1)->type, SK_STRINGLIT_NODE);
+    cr_assert_eq(skJson_array_front(ret)->type, SK_REFERENCE_NODE);
+    cr_assert_eq(skJson_array_back(ret)->type, SK_REFERENCE_NODE);
+    cr_assert_eq(skJson_array_index(ret, 1)->type, SK_REFERENCE_NODE);
 
     skJson* node;
     int     control = 0;
@@ -652,6 +648,7 @@ Test(skJsonFinal, ParseComplete)
     cr_assert(skJson_parent(node));
     cr_assert(skJson_parent_type(node) == SK_ARRAY_NODE);
 
+    /* Transform into double. */
     cr_assert_eq(skJson_transform_into_double(node, 69.69)->data.j_double, 69.69);
     cr_assert(skJson_double_value(node, &control) == 69.69);
     cr_assert(control == 0); /* No error */
@@ -659,20 +656,23 @@ Test(skJsonFinal, ParseComplete)
     cr_assert(skJson_parent(node));
     cr_assert(skJson_parent_type(node) == SK_ARRAY_NODE);
 
+    /* Transform into boolean. */
     cr_assert_eq(skJson_transform_into_bool(node, false)->data.j_boolean, false);
     cr_assert(skJson_bool_value(node) == false);
     cr_assert_eq(node->type, SK_BOOL_NODE);
     cr_assert(skJson_parent(node));
     cr_assert(skJson_parent_type(node) == SK_ARRAY_NODE);
 
+    /* Transform into reference. */
     cr_assert_str_eq(
-        skJson_transform_into_stringlit(node, "Random bullshit")->data.j_string,
+        skJson_transform_into_ref(node, "Random bullshit")->data.j_string,
         "Random bullshit");
     cr_assert_str_eq(skJson_string_ref_unsafe(node), "Random bullshit");
-    cr_assert_eq(node->type, SK_STRINGLIT_NODE);
+    cr_assert_eq(node->type, SK_REFERENCE_NODE);
     cr_assert(skJson_parent(node));
     cr_assert(skJson_parent_type(node) == SK_ARRAY_NODE);
 
+    /* Transform into string. */
     char* tempstr;
     cr_assert_str_eq(
         skJson_transform_into_string(node, "Random bullshit 2")->data.j_string,
@@ -684,6 +684,7 @@ Test(skJsonFinal, ParseComplete)
     cr_assert(skJson_parent(node));
     cr_assert(skJson_parent_type(node) == SK_ARRAY_NODE);
 
+    /* Transform it into empty array and do array stuff. */
     cr_assert(skJson_transform_into_empty_array(node)->data.j_array != NULL);
     cr_assert(skJson_array_len(node) == 0);
     cr_assert_eq(node->type, SK_ARRAY_NODE);
@@ -703,6 +704,7 @@ Test(skJsonFinal, ParseComplete)
     cr_assert(skJson_parent_type(node) == SK_ARRAY_NODE);
     cr_assert(skJson_array_len(node) == 9);
 
+    /* Transform it into object and do object stuff. */
     cr_assert(skJson_transform_into_empty_object(node)->data.j_object != NULL);
     cr_assert(skJson_object_len(node) == 0);
     cr_assert_eq(skJson_type(node), SK_OBJECT_NODE);
@@ -763,13 +765,15 @@ Test(skJsonFinal, ParseComplete)
     cr_assert_str_eq(skJson_object_index(node, 2)->key, "key3");
     cr_assert_str_eq(skJson_object_index(node, 3)->key, "key2");
     cr_assert_str_eq(skJson_object_index(node, 4)->key, "key1");
+    skJson_drop(&skJson_object_index(node, 4)->value);
+    cr_assert(skJson_object_index(node, 4)->value.type == SK_NULL_NODE);
     cr_assert(skJson_object_is_sorted(node) == false);
     cr_assert(skJson_object_is_sorted_by(node, (CmpFn) cmp_tuples_descending));
     cr_assert_str_eq(
         skJson_object_index(node, 2)->key,
         skJson_object_index_by_key(node, "key3", false)->key);
 
-    /* Serializer */
+    /* Serialize the json */
     unsigned char* out;
     out = skJson_serialize(&json_final);
     cr_assert(out != NULL);

@@ -7,8 +7,8 @@ OBJDIR := $(RELEASE_DIR)/obj
 DBUG_DIR := $(BUILD_DIR)/debug
 DBUG_OBJDIR := $(DBUG_DIR)/obj
 
-HEADER_INSTALL_DIR = /usr/local/include
-LIB_INSTALL_DIR = /usr/local/lib
+HEADER_INSTALL = /usr/local/include
+LIB_INSTALL = /usr/local/lib
 
 CFILES := $(wildcard $(SRCDIR)/*.c)
 OBJFILES := $(patsubst $(SRCDIR)/%.c,$(OBJDIR)/%.o,$(CFILES))
@@ -62,18 +62,22 @@ debug: $(DBUG_DIR)/$(LIB)
 release: $(RELEASE_DIR)/$(LIB)
 
 clean:
-	rm -rf $(DBUG_DIR)/$(LIB) $(RELEASE_DIR)/$(LIB) $(OBJFILES) $(DBUG_OBJFILES) $(DBUG_DEP_FILES) $(DEP_FILES)
+	rm -rf $(BUILD_DIR)
 	$(MAKE) -C $(TESTDIR) clean
 
 test: debug
 	$(MAKE) -C $(TESTDIR) test
 
-test-leak: debug
-	$(MAKE) -C $(TESTDIR) test-leak
+test-sanitizer: debug
+	$(MAKE) -C $(TESTDIR) test-sanitizer
+
+test-valgrind: debug
+	$(MAKE) -C $(TESTDIR) test-valgrind
 
 install: $(RELEASE_DIR)/$(LIB)
-	sudo cp -i $(RELEASE_DIR)/$(LIB) $(LIB_INSTALL_DIR)
+	sudo cp -i $(RELEASE_DIR)/$(LIB) $(LIB_INSTALL)
+	sudo cp -i $(SRCDIR)/skjson.h $(HEADER_INSTALL)
 
 -include $(DEP_FILES) $(DBUG_DEP_FILES)
 
-.PHONY: all clean test install dirs release debug test-leak
+.PHONY: all clean test install dirs release debug test-sanitizer test-valgrind

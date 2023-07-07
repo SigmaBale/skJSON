@@ -128,7 +128,7 @@ void skJsonNode_drop(skJson* node)
 {
     if(is_some(node)) {
 #ifdef SK_DBUG
-        assert(node->type != SK_DROPPED_NODE);
+        assert(node->type != SK_NONE_NODE);
 #endif
         switch(node->type) {
             case SK_OBJECT_NODE:
