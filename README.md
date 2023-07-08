@@ -79,7 +79,7 @@ run `sudo ldconfig` in terminal.
 This will build the tests:
 ```
 cd build
-cmake -D SKJSON_BUILD_TESTS ..
+cmake -D SKJSON_BUILD_TESTS=1 ..
 make
 ```
 This will run them:
