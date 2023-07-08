@@ -39,7 +39,7 @@ skJson ObjectNode_new(const skJson* parent)
     object_node = RawNode_new(SK_OBJECT_NODE, parent);
 
     if(is_null(object_node.data.j_object = skVec_new(sizeof(skObjTuple)))) {
-        object_node.type = SK_ERROR_NODE;
+        object_node.type = SK_NONE_NODE;
     }
 
     return object_node;
@@ -51,7 +51,7 @@ skJson ArrayNode_new(const skJson* parent)
     array_node = RawNode_new(SK_ARRAY_NODE, discard_const(parent));
 
     if(is_null(array_node.data.j_array = skVec_new(sizeof(skJson)))) {
-        array_node.type = SK_ERROR_NODE;
+        array_node.type = SK_NONE_NODE;
     }
 
     return array_node;
@@ -72,7 +72,10 @@ skJson ErrorNode_new(const skJsonString msg, skJsonState state, const skJson* pa
         state.col,
         state.depth);
 
-    err_node.data.j_err = strdup_ansi(errmsg);
+    if(is_null(err_node.data.j_err = strdup_ansi(errmsg))) {
+        err_node.type = SK_NONE_NODE;
+    }
+
     return err_node;
 }
 
@@ -83,7 +86,7 @@ skJson StringNode_new(const skJsonString str, skNodeType type, const skJson* par
 
     if(type == SK_STRING_NODE) {
         if(is_null(string_node.data.j_string = strdup_ansi(str))) {
-            string_node.type = SK_ERROR_NODE;
+            string_node.type = SK_NONE_NODE;
             return string_node;
         }
     } else {

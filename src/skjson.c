@@ -33,11 +33,16 @@
 #define copylink(src, dst)                              \
     (src)->parent_arena.ptr  = (dst)->parent_arena.ptr; \
     (src)->parent_arena.type = (dst)->parent_arena.type
+/* Checks if node is SK_NONE_NODE or SK_ERROR_NODE */
+#define err_or_none(node) ((node)->type & (SK_NONE_NODE | SK_ERROR_NODE))
 
-/* Private typedefs */
-/* Json Serializer */
+/**
+ * Private typedefs
+ *
+ *
+ * Json Serializer */
 typedef struct _Serializer Serializer;
-/* Generic CString push function for references and owned strings.
+/* Generic CString push function for references and strings.
  * Used when constructing json array from array of strings/references. */
 typedef skJsonBool (*CStrPush)(skJson*, const char*);
 
@@ -82,28 +87,17 @@ PUBLIC(skJson) skJson_parse(char* buff, size_t bufsize)
 {
     skScanner* scanner;
     skJson json;
-    skJsonBool oom;
 
-    oom = false;
     json.type = SK_NONE_NODE;
 
-    if(is_null(buff) || bufsize == 0) {
-        return json;
-    }
-
-    if(is_null(scanner = skScanner_new(buff, bufsize))) {
+    if(is_null(buff) || bufsize == 0 || is_null(scanner = skScanner_new(buff, bufsize))) {
         return json;
     }
 
     /* Fetch first token */
     skScanner_next(scanner); 
     /* Construct the parse tree */
-    json = skJsonNode_parse(scanner, NULL, &oom);
-#ifdef SK_DBUG
-    if(oom == true) {
-        assert(json.type == SK_NONE_NODE);
-    }
-#endif
+    json = skJsonNode_parse(scanner, NULL);
     /* We are done scanning */
     free(scanner);
 
@@ -670,11 +664,9 @@ PRIVATE(skJsonBool) skJson_array_insert_internal(
     }
 
     if(push) {
-        if(!skVec_push(parent->data.j_array, &node)) {
-            fail = true;
-        }
-    } else if(!skVec_insert(parent->data.j_array, &node, index)) {
-        fail = true;
+        fail = !skVec_push(parent->data.j_array, &node);
+    } else {
+        fail = !skVec_insert(parent->data.j_array, &node, index);
     }
 
     if(fail) {
@@ -942,7 +934,7 @@ PUBLIC(skJson) skJson_array_from_doubles(const double* doubles, size_t count)
     }
 
     while(count--) {
-        if(!skJson_array_push_int(&arr_node, *doubles++)) {
+        if(!skJson_array_push_double(&arr_node, *doubles++)) {
             skJsonNode_drop(&arr_node);
             arr_node.data.j_array = NULL;
             arr_node.type = SK_ERROR_NODE;
@@ -967,7 +959,7 @@ PUBLIC(skJson) skJson_array_from_booleans(const skJsonBool* booleans, size_t cou
     }
 
     while(count--) {
-        if(!skJson_array_push_int(&arr_node, *booleans++)) {
+        if(!skJson_array_push_bool(&arr_node, *booleans++)) {
             skJsonNode_drop(&arr_node);
             arr_node.data.j_array = NULL;
             arr_node.type = SK_ERROR_NODE;
@@ -1029,7 +1021,7 @@ PUBLIC(skJson) skJson_array_from_elements(const skJson* const* elements, size_t 
         {
             skJsonNode_drop(&arr_node);
             arr_node.data.j_array = NULL;
-            arr_node.type = SK_ERROR_NODE;
+            arr_node.type = SK_NONE_NODE;
             return arr_node;
         }
     }
@@ -1203,7 +1195,7 @@ PRIVATE(skJsonBool) skJson_object_insert_internal(
 
     if(!element) {
         tuple.value = skJson_constructor_internal(discard_const(val), type, parent);
-        if(tuple.value.type == SK_ERROR_NODE) {
+        if(tuple.value.type == SK_NONE_NODE) {
             return false;
         }
     } else {
@@ -1221,11 +1213,9 @@ PRIVATE(skJsonBool) skJson_object_insert_internal(
     }
 
     if(push) {
-        if(!skVec_push(parent->data.j_object, &tuple)) {
-            fail = true;
-        }
-    } else if(!skVec_insert(parent->data.j_object, &tuple, index)) {
-        fail = true;
+        fail = !skVec_push(parent->data.j_object, &tuple);
+    } else {
+        fail = !skVec_insert(parent->data.j_object, &tuple, index);
     }
 
     if(fail) {
@@ -1693,7 +1683,7 @@ PRIVATE(unsigned char*) Serializer_buffer_ensure(Serializer* serializer, size_t 
         return NULL;
     }
 
-    needed += serializer->offset + 1; /* 1 for null terminator */
+    needed += serializer->offset + 1;
 
     /* If we got enough space return current position */
     if(needed <= serializer->length) {
@@ -1760,8 +1750,10 @@ skJson_serialize_with_buffer(skJson* json, unsigned char* buffer, size_t size, s
         return NULL;
     }
 
-    if(json->type == SK_ERROR_NODE) {
+    if(err_or_none(json)) {
+#ifdef SK_ERRMSG
         THROW_ERR(WrongNodeType);
+#endif
         return NULL;
     }
 
@@ -1785,8 +1777,10 @@ skJson_serialize_with_bufsize(skJson* json, size_t size, skJsonBool expand)
         return NULL;
     }
 
-    if(json->type == SK_ERROR_NODE) {
+    if(err_or_none(json)) {
+#ifdef SK_ERRMSG
         THROW_ERR(WrongNodeType);
+#endif
         return NULL;
     }
 
@@ -1809,8 +1803,10 @@ PUBLIC(unsigned char*) skJson_serialize(skJson* json)
         return NULL;
     }
 
-    if(json->type == SK_ERROR_NODE) {
+    if(err_or_none(json)) {
+#ifdef SK_ERRMSG
         THROW_ERR(WrongNodeType);
+#endif
         return NULL;
     }
 
@@ -1849,7 +1845,9 @@ PRIVATE(skJsonBool) Serializer_serialize(Serializer* serializer, skJson* json)
             return Serializer_serialize_object(serializer, json->data.j_object);
         case SK_ERROR_NODE:
         default:
+#ifdef SK_ERRMSG
             THROW_ERR(SerializerInvalidJson);
+#endif
             return false;
     }
 }
@@ -1871,11 +1869,13 @@ PRIVATE(skJsonBool) Serializer_serialize_number(Serializer* serializer, skJson* 
     }
 
     if(len < 0 || len >= 30) {
+#ifdef SK_ERRMSG
         THROW_ERR(SerializerNumberError);
+#endif
         return false;
     }
 
-    out = Serializer_buffer_ensure(serializer, len + sizeof("")); /* len + '\0' */
+    out = Serializer_buffer_ensure(serializer, len + sizeof(""));
 
     if(is_null(out)) {
         return false;

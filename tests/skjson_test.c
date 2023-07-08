@@ -7,9 +7,9 @@
 /* clang-format on */
 
 skJsonString skJsonString_new_internal(skScanner* scanner, skJson* err_node);
-skJson       skparse_json_object(skScanner* scanner, skJson* parent, bool* oom);
-skJson       skparse_json_array(skScanner* scanner, skJson* parent, bool* oom);
-skJson       skparse_json_string(skScanner* scanner, skJson* parent, bool* oom);
+skJson       skparse_json_object(skScanner* scanner, skJson* parent);
+skJson       skparse_json_array(skScanner* scanner, skJson* parent);
+skJson       skparse_json_string(skScanner* scanner, skJson* parent);
 skJson       skparse_json_number(skScanner* scanner, skJson* parent);
 skJson       skparse_json_bool(skScanner* scanner, skJson* parent);
 skJson       skparse_json_null(skScanner* scanner, skJson* parent);
@@ -234,7 +234,6 @@ Test(SkJson, ParseTokens)
 
 Test(SkJson, ParsePrimitives)
 {
-    bool oom = false;
     cr_assert(scanner != NULL);
 
     skToken token = skScanner_next(scanner);
@@ -244,8 +243,8 @@ Test(SkJson, ParsePrimitives)
     skScanner_skip(scanner, 2, SK_WS, SK_NL);
     cr_assert(SK_STRING == (token = skScanner_peek(scanner)).type);
 
-    skJson str_node = skparse_json_string(scanner, NULL, &oom);
-    cr_assert(oom == false && str_node.data.j_string != NULL);
+    skJson str_node = skparse_json_string(scanner, NULL);
+    cr_assert(str_node.type != SK_NONE_NODE);
     cr_assert_eq(strcmp(str_node.data.j_string, "glossary"), 0);
     cr_assert(str_node.type == SK_STRING_NODE);
     skJson_drop(&str_node);
@@ -316,7 +315,6 @@ TestSuite(skJsonComplex, .init = json_setup_simple, .fini = json_teardown);
 
 Test(skJsonComplex, ParseObjects)
 {
-    bool    oom   = false;
     skToken token = skScanner_next(scanner);
     cr_assert(token.type == SK_LCURLY);
     cr_assert(skScanner_next(scanner).type == SK_NL);
@@ -330,9 +328,8 @@ Test(skJsonComplex, ParseObjects)
     cr_assert(skScanner_next(scanner).type == SK_WS);
     cr_assert(skScanner_next(scanner).type == SK_LBRACK);
 
-    cr_assert(oom == false);
-    skJson arr_node = skparse_json_array(scanner, NULL, &oom);
-    cr_assert(oom == false);
+    skJson arr_node = skparse_json_array(scanner, NULL);
+    cr_assert(arr_node.type != SK_NONE_NODE);
     cr_assert(arr_node.type == SK_ARRAY_NODE);
     cr_assert(skVec_len(arr_node.data.j_array) == 7);
     skVec*  nodes = arr_node.data.j_array;
@@ -389,8 +386,8 @@ Test(skJsonComplex, ParseObjects)
     cr_assert((token = skScanner_next(scanner)).type == SK_WS);
     cr_assert((token = skScanner_next(scanner)).type == SK_STRING);
 
-    skJson json_string = skJsonNode_parse(scanner, NULL, (skJsonBool*) &oom);
-    cr_assert(oom == false);
+    skJson json_string = skJsonNode_parse(scanner, NULL);
+    cr_assert(json_string.type != SK_NONE_NODE);
     cr_assert(json_string.type == SK_STRING_NODE);
     cr_assert_str_eq(json_string.data.j_string, "obj");
     cr_assert(json_string.parent_arena.ptr == NULL);
@@ -401,8 +398,8 @@ Test(skJsonComplex, ParseObjects)
     cr_assert((token = skScanner_next(scanner)).type == SK_WS);
     cr_assert((token = skScanner_next(scanner)).type == SK_LCURLY);
 
-    skJson json_object = skJsonNode_parse(scanner, NULL, (skJsonBool*) &oom);
-    cr_assert(oom == false);
+    skJson json_object = skJsonNode_parse(scanner, NULL);
+    cr_assert(json_object.type != SK_NONE_NODE);
     cr_assert_eq(json_object.type, SK_OBJECT_NODE);
     cr_assert(json_object.parent_arena.ptr == NULL);
 
@@ -441,14 +438,13 @@ Test(skJsonComplex, ParseObjects)
 
 Test(skJsonComplex, ParseWhole)
 {
-    bool oom = false;
     cr_assert(scanner != NULL);
 
     skScanner_next(scanner);
     cr_assert(skScanner_peek(scanner).type == SK_LCURLY);
 
-    skJson root = skJsonNode_parse(scanner, NULL, (skJsonBool*) &oom);
-    cr_assert(oom == false);
+    skJson root = skJsonNode_parse(scanner, NULL);
+    cr_assert(root.type != SK_NONE_NODE);
     cr_assert(root.type == SK_OBJECT_NODE);
     cr_assert(root.parent_arena.ptr == NULL);
     cr_assert(root.data.j_object != NULL);
